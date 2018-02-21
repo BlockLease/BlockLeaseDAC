@@ -15,9 +15,14 @@ interface ERC20 {
   event Approval(address indexed _owner, address indexed _spender, uint256 _value);
 }
 
-contract BlockLeaseDAC is ERC20 {
+interface DAC {
+  event Profit(address indexed _from, uint256 _value, uint256 _totalProfit, uint256 _profitInContract);
+  function pay() external payable;
+}
 
-  address owner;
+contract BlockLeaseDAC is ERC20, DAC {
+
+  mapping (address => bool) operators;
 
   mapping (address => uint256) public balances;
   mapping (address => mapping (address => uint256)) public allowances;
@@ -44,17 +49,21 @@ contract BlockLeaseDAC is ERC20 {
   mapping (address => uint256) profitBalances;
 
   function BlockLeaseDAC() public {
-    owner = msg.sender;
+    operators[msg.sender] = true;
     tokensForSale = 100000000;
     tokensPerEth = 200000;
 
+    balances[0x0] = totalSupply();
+    balances[0x0] = 0;
     balances[this] = totalSupply();
     Transfer(0x0, this, totalSupply());
   }
 
   function withdraw(address _target, uint256 _amount) public {
-    require(msg.sender == owner);
+    require(operators[msg.sender]);
+    // First throw if amount is greater than balance to avoid sign issues
     require(this.balance >= _amount);
+    // Then ensure we never overdraw on profit held by token owners
     require(this.balance - _amount >= profitInContract);
     _target.transfer(_amount);
   }
@@ -65,38 +74,27 @@ contract BlockLeaseDAC is ERC20 {
   function () public payable {
     uint256 tokenCount = tokensPerEth * msg.value;
     require(tokensSold + tokenCount <= tokensForSale);
-    require(balances[this] >= tokenCount);
-    updateProfitBalance(this);
-    updateProfitBalance(msg.sender);
-    balances[this] -= tokenCount;
-    balances[msg.sender] += tokenCount;
-    Transfer(this, msg.sender, tokenCount);
+    _transferFrom(this, msg.sender, tokenCount);
   }
 
   /**
    * BlockLeaseDAC profits are received here.
    **/
-  function profit() external payable {
+  function pay() external payable {
     totalProfit += msg.value;
     profitInContract += msg.value;
+    Profit(msg.sender, msg.value, totalProfit, profitInContract);
     if (bonusesDistributed >= bonusPool) return;
-    uint256 bonusTokens = tokensPerEth / 1000 * msg.value;
-    updateProfitBalance(this);
-    updateProfitBalance(msg.sender);
     if (bonusesDistributed + bonusTokens > bonusPool) {
       // The edge case of bonus distribution finishing
+      // Pay out the remainder of the bonus pool
       uint256 actualBonus = bonusPool - bonusesDistributed;
-      require(actualBonus <= balances[this]);
+      _transferFrom(this, msg.sender, actualBonus);
       bonusesDistributed = bonusPool;
-      balances[this] -= actualBonus;
-      balances[msg.sender] += actualBonus;
-      Transfer(this, msg.sender, actualBonus);
     } else {
-      require(bonusTokens <= balances[this]);
+      uint256 bonusTokens = tokensPerEth / 1000 * msg.value;
+      _transferFrom(this, msg.sender, bonusTokens);
       bonusesDistributed += bonusTokens;
-      balances[this] -= bonusTokens;
-      balances[msg.sender] += bonusTokens;
-      Transfer(this, msg.sender, bonusTokens);
     }
   }
 
@@ -118,12 +116,16 @@ contract BlockLeaseDAC is ERC20 {
   }
 
   function withdrawProfit() public returns (bool) {
-    updateProfitBalance(msg.sender);
-    if (profitBalances[msg.sender] > 0) {
-      uint256 balance = profitBalances[msg.sender];
+    return _withdrawProfit(msg.sender);
+  }
+
+  function _withdrawProfit(address _from) public returns (bool) {
+    updateProfitBalance(_from);
+    if (profitBalances[_from] > 0) {
+      uint256 balance = profitBalances[_from];
       profitInContract -= balance;
-      profitBalances[msg.sender] = 0;
-      return msg.sender.send(balance);
+      profitBalances[_from] -= balance;
+      return _from.send(balance);
     } else {
       return true;
     }
@@ -154,18 +156,17 @@ contract BlockLeaseDAC is ERC20 {
   }
 
   function transfer(address _to, uint256 _value) external returns (bool) {
-    require(balances[msg.sender] >= _value);
-    updateProfitBalance(msg.sender);
-    updateProfitBalance(_to);
-    balances[msg.sender] -= _value;
-    balances[_to] += _value;
-    Transfer(msg.sender, _to, _value);
-    return true;
+    return _transferFrom(msg.sender, _to, _value);
   }
 
   function transferFrom(address _from, address _to, uint256 _value) external returns (bool) {
-    require(allowances[_from][msg.sender] >= value);
-    require(balances[_from] >= value);
+    require(allowances[_from][msg.sender] >= _value);
+    allowances[_from][msg.sender] -= _value;
+    return _transferFrom(_from, _to, _value);
+  }
+
+  function _transferFrom(address _from, address _to, uint256 _value) private returns (bool) {
+    require(balances[_from] >= _value);
     updateProfitBalance(_from);
     updateProfitBalance(_to);
     balances[_from] -= _value;
