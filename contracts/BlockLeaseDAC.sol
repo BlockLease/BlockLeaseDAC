@@ -106,26 +106,6 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Proposal voting
    **/
 
-  function applyProposal() public operatorOnly {
-    require(!lastProposalApplied);
-    require(proposals.length > 0);
-    require(!isVoteActive());
-    require(proposals[proposalNumber].totalVotes >= tokensSold / 2);
-    tokensForSale = proposals[proposalNumber].tokensForSale;
-    tokensPerEth = proposals[proposalNumber].tokensPerEth;
-    bonusPool = proposals[proposalNumber].bonusPool;
-    votingBlockCount = proposals[proposalNumber].votingBlockCount;
-    lastProposalApplied = true;
-  }
-
-  function isVoteActive() public constant returns (bool) {
-    if (proposals.length == 0) return false;
-    return (
-      block.number < proposals[proposalNumber].blockNumber + votingBlockCount &&
-      block.number >= proposals[proposalNumber].blockNumber
-    );
-  }
-
   /**
    * Create a proposal to modify certain state variables
    **/
@@ -141,13 +121,40 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(_tokensPerEth <= tokensPerEth);
     require(_bonusPool >= bonusPool);
     require(_tokensForSale + _bonusPool <= totalSupply());
-    /* require(_votingBlockCount >= 60 * 60 * 24 * 14); */
+    require(_votingBlockCount > 0);
     if (proposals.length != 0) {
       proposalNumber++;
     }
     proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _votingBlockCount, block.number, 0));
     lastProposalApplied = false;
   }
+
+  /**
+   * Apply a voted upon proposal
+   **/
+  function applyProposal() public operatorOnly {
+    require(!lastProposalApplied);
+    require(proposals.length > 0);
+    require(!isVoteActive());
+    if (proposals[proposalNumber].totalVotes < tokensSold / 2) {
+      lastProposalApplied = true;
+      return;
+    }
+    tokensForSale = proposals[proposalNumber].tokensForSale;
+    tokensPerEth = proposals[proposalNumber].tokensPerEth;
+    bonusPool = proposals[proposalNumber].bonusPool;
+    votingBlockCount = proposals[proposalNumber].votingBlockCount;
+    lastProposalApplied = true;
+  }
+
+  function isVoteActive() public constant returns (bool) {
+    if (proposals.length == 0) return false;
+    return (
+      block.number < proposals[proposalNumber].blockNumber + votingBlockCount &&
+      block.number >= proposals[proposalNumber].blockNumber
+    );
+  }
+
 
   function vote() public {
     require(isVoteActive());

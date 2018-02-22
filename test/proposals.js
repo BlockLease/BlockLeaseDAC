@@ -4,13 +4,13 @@ const BlockLeaseDAC = artifacts.require('./BlockLeaseDAC.sol');
 
 async function bootstrap(contract, operator) {
   return throwToBool(async () => {
-    await contract.bootstrap(100000000, 200000, 100000000, 2, {
+    await contract.bootstrap(0, await contract.totalSupply.call(), 0, 2, {
       from: operator
     });
   });
 }
 
-async function createProposal(contract, operator, ...args) {
+async function createProposal(contract, operator, args) {
   return await throwToBool(async () => {
     await contract.createProposal(...args, {
       from: operator
@@ -100,7 +100,7 @@ contract('BlockLeaseDAC', (accounts) => {
   it('should fail to create proposal with lower tokensForSale value', async () => {
     const contract = await BlockLeaseDAC.deployed();
     const proposal = await activeProposal(contract);
-    proposal[0] -= 1;
+    proposal[0] = proposal[0] - 1;
     assert(!await createProposal(contract, accounts[0], proposal), 'Decreased tokensForSale in proposal');
   });
 
@@ -111,77 +111,29 @@ contract('BlockLeaseDAC', (accounts) => {
     assert(!await createProposal(contract, accounts[0], proposal, 'Increased tokensPerEth in proposal'));
   });
 
-  xit('should fail to create invalid proposals', async () => {
+  it('should fail to create proposal with lower bonusPool value', async () => {
     const contract = await BlockLeaseDAC.deployed();
-    const tokensForSale = await contract.tokensForSale.call();
-    const tokensPerEth = await contract.tokensPerEth.call();
-    const bonusPool = await contract.bonusPool.call();
-    const proposalVotingTime = await contract.proposalVotingTime.call();
-    // Testing failure conditions of createProposal
-    let thrown = false;
-    try {
-      await contract.createProposal(
-        tokensForSale - 1,
-        tokensPerEth,
-        bonusPool,
-        proposalVotingTime,
-        {
-          from: accounts[0]
-        }
-      );
-    } catch (err) {
-      thrown = true;
-    } finally {
-      if (!thrown) throw new Error('Should fail to propose decrease in tokensForSale');
-      thrown = false;
-    }
-    try {
-      await contract.createProposal(
-        tokensForSale,
-        tokensPerEth - 1,
-        bonusPool,
-        proposalVotingTime,
-        {
-          from: accounts[0]
-        }
-      );
-    } catch (err) {
-      thrown = true;
-    } finally {
-      if (!thrown) throw new Error('Should fail to propose decrease in tokensPerEth');
-      thrown = false;
-    }
-    try {
-      await contract.createProposal(
-        tokensForSale,
-        tokensPerEth,
-        bonusPool - 1,
-        proposalVotingTime,
-        {
-          from: accounts[0]
-        }
-      );
-    } catch (err) {
-      thrown = true;
-    } finally {
-      if (!thrown) throw new Error('Should fail to propose decrease in bonusPool');
-      thrown = false;
-    }
-    try {
-      await contract.createProposal(
-        tokensForSale,
-        tokensPerEth,
-        bonusPool,
-        {
-          from: accounts[1]
-        }
-      );
-    } catch (err) {
-      thrown = true;
-    } finally {
-      if (!thrown) throw new Error('Should fail to propose from a non-operator address');
-      thrown = false;
-    }
+    const proposal = await activeProposal(contract);
+    proposal[2] = +proposal[2] - 1;
+    assert(!await createProposal(contract, accounts[0], proposal, 'Decreased bonusPool in proposal'));
+  });
+
+  it('should fail to create proposal with 0 proposalVotingTime', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(contract);
+    proposal[3] = 0;
+    assert(!await createProposal(contract, accounts[0], proposal, 'Set proposalVotingTime to 0 in proposal'));
+  });
+
+  it('should create a proposal', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    const proposal = [
+      100000000,
+      200000,
+      100000000,
+      2
+    ];
+    assert(await createProposal(contract, accounts[0], proposal), 'Failed to create proposal');
   });
 
 });
