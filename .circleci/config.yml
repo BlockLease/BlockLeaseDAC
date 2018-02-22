@@ -1,11 +1,12 @@
 master_build: &MasterBuild |
-  npm i -g npm@latest truffle@latest
+  npm i -g truffle@latest
   truffle test
 
 version: 2
 jobs:
   build:
-    machine: true
+    docker:
+      - image: node:8.0
     steps:
       - checkout
       - run: *MasterBuild
