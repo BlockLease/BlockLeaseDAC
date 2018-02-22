@@ -10,6 +10,14 @@ async function bootstrap(contract, operator) {
   });
 }
 
+async function createProposal(contract, operator, ...args) {
+  return await throwToBool(async () => {
+    await contract.createProposal(...args, {
+      from: operator
+    });
+  });
+}
+
 async function applyProposal(contract, operator) {
   return await throwToBool(async () => {
     await contract.applyProposal({
@@ -32,6 +40,16 @@ async function throwToBool(fn, ...args) {
   }
 }
 
+async function waitForBlock(num) {
+  do {
+    if (web3.eth.blockNumber >= num) return;
+  } while (await new Promise(r => setTimeout(r, 1000)));
+}
+
+async function waitForNextBlock() {
+  return waitForBlock(web3.eth.blockNumber + 1);
+}
+
 async function activeProposal(contract) {
   const proposalNumber = await contract.proposalNumber.call();
   return await contract.proposals.call(proposalNumber);
@@ -46,7 +64,7 @@ contract('BlockLeaseDAC', (accounts) => {
 
   it('should bootstrap', async () => {
     const contract = await BlockLeaseDAC.deployed();
-    assert(await bootstrap(contract, accounts[0]));
+    assert(await bootstrap(contract, accounts[0]), 'Error bootstrapping');
 
     const balance = await contract.balanceOf.call(contract.address);
     const totalSupply = await contract.totalSupply.call();
@@ -64,7 +82,7 @@ contract('BlockLeaseDAC', (accounts) => {
     const proposal = await activeProposal(contract);
     const votingPeriodEndBlock = +proposal[4] + +votingBlockCount;
     console.log(`Waiting until block ${votingPeriodEndBlock} to apply initial proposal`);
-    while (web3.blockNumber < votingPeriodEndBlock + 2 /* wait an extra block to be safe */) {
+    while (web3.blockNumber < votingPeriodEndBlock + 2 /* wait an extra couple blocks to be safe */) {
       await new Promise(r => setTimeout(r, 5000))
     }
     assert(!await applyProposal(contract, accounts[1]), 'Non-operator applied proposal');
@@ -80,14 +98,22 @@ contract('BlockLeaseDAC', (accounts) => {
 
   it('should fail to create a new proposal if not operator', async () => {
     const contract = await BlockLeaseDAC.deployed();
-    try {
-      await contract.createProposal({
-        from: accounts[1]
-      });
-    } catch (err) {
-      return;
-    }
-    throw new Error('Non-operator account should not create proposal');
+    const proposal = await activeProposal(contract);
+    assert(!await createProposal(contract, accounts[1], proposal), 'Non-operator created proposal');
+  });
+
+  it('should fail to create proposal with lower tokensForSale value', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(contract);
+    proposal[0] -= 1;
+    assert(!await createProposal(contract, accounts[0], proposal), 'Decreased tokensForSale in proposal');
+  });
+
+  it('should fail to create proposal with higher tokensPerEth value', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(contract);
+    proposal[1] = +proposal[1] + 1;
+    assert(!await createProposal(contract, accounts[0], proposal, 'Increased tokensPerEth in proposal'));
   });
 
   xit('should fail to create invalid proposals', async () => {

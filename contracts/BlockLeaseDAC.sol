@@ -65,12 +65,18 @@ contract BlockLeaseDAC is ERC20, DAC {
   // Profit balances available for withdrawal
   mapping (address => uint256) profitBalances;
 
+  modifier operatorOnly() {
+    require(operators[msg.sender]);
+    _;
+  }
+
   /**
    * Constructor
    **/
   function BlockLeaseDAC() public {
     operators[msg.sender] = true;
     lastProposalApplied = true;
+    tokensPerEth = totalSupply();
     votingBlockCount = 5;
     balances[0x0] = totalSupply();
   }
@@ -81,16 +87,14 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint256 _tokensPerEth,
     uint256 _bonusPool,
     uint256 _votingBlockCount
-  ) public {
-    require(operators[msg.sender]);
+  ) public operatorOnly {
     require(!_bootstrapped);
     _transferFrom(0x0, this, totalSupply());
     createProposal(_tokensForSale, _tokensPerEth, _bonusPool, _votingBlockCount);
     _bootstrapped = true;
   }
 
-  function withdraw(address _target, uint256 _amount) public {
-    require(operators[msg.sender]);
+  function withdraw(address _target, uint256 _amount) public operatorOnly {
     // First throw if amount is greater than balance to avoid sign issues
     require(this.balance >= _amount);
     // Then ensure we never overdraw on profit held by token owners
@@ -102,9 +106,8 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Proposal voting
    **/
 
-  function applyProposal() public {
+  function applyProposal() public operatorOnly {
     require(!lastProposalApplied);
-    require(operators[msg.sender]);
     require(proposals.length > 0);
     require(!isVoteActive());
     require(proposals[proposalNumber].totalVotes >= tokensSold / 2);
@@ -123,10 +126,17 @@ contract BlockLeaseDAC is ERC20, DAC {
     );
   }
 
-  function createProposal(uint256 _tokensForSale, uint256 _tokensPerEth, uint256 _bonusPool, uint256 _votingBlockCount) public {
+  /**
+   * Create a proposal to modify certain state variables
+   **/
+  function createProposal(
+    uint256 _tokensForSale,
+    uint256 _tokensPerEth,
+    uint256 _bonusPool,
+    uint256 _votingBlockCount
+  ) public operatorOnly {
     if (!lastProposalApplied) applyProposal();
     require(!isVoteActive());
-    require(operators[msg.sender]);
     require(_tokensForSale >= tokensForSale);
     require(_tokensPerEth <= tokensPerEth);
     require(_bonusPool >= bonusPool);
