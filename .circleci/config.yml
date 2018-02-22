@@ -6,7 +6,9 @@ master_build: &MasterBuild |
 version: 2
 jobs:
   build:
-    machine: true
+    machine:
+      node:
+        version: 8.9.0
     steps:
       - checkout
       - run: *MasterBuild
