@@ -1,0 +1,11 @@
+master_build: &MasterBuild |
+  npm install -g truffle@latest
+  truffle test
+
+version: 2
+jobs:
+  build:
+    machine: true
+    steps:
+      - checkout
+      - run: *MasterBuild
