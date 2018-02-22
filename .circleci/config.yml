@@ -1,4 +1,5 @@
 master_build: &MasterBuild |
+  node -v
   npm install -g truffle@latest
   truffle test
 
