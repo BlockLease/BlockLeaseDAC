@@ -68,18 +68,26 @@ contract BlockLeaseDAC is ERC20, DAC {
   /**
    * Constructor
    **/
-  function BlockLeaseDAC(
+  function BlockLeaseDAC() public {
+    operators[msg.sender] = true;
+    lastProposalApplied = true;
+    proposalVotingTime = 15;
+    tokensPerEth = 400000;
+    balances[0x0] = totalSupply();
+  }
+
+  bool _bootstrapped = false;
+  function bootstrap(
     uint256 _tokensForSale,
     uint256 _tokensPerEth,
     uint256 _bonusPool,
     uint256 _proposalVotingTime
   ) public {
-    operators[msg.sender] = true;
-    lastProposalApplied = true;
-    balances[0x0] = totalSupply();
-    proposalVotingTime = 15;
+    require(operators[msg.sender]);
+    require(!_bootstrapped);
+    _transferFrom(0x0, this, totalSupply());
     createProposal(_tokensForSale, _tokensPerEth, _bonusPool, _proposalVotingTime);
-    require(_transferFrom(0x0, this, totalSupply()));
+    _bootstrapped = true;
   }
 
   function withdraw(address _target, uint256 _amount) public {
@@ -118,7 +126,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(!isVoteActive());
     require(operators[msg.sender]);
     require(_tokensForSale >= tokensForSale);
-    require(_tokensPerEth >= tokensPerEth);
+    require(_tokensPerEth <= tokensPerEth);
     require(_bonusPool >= bonusPool);
     require(_tokensForSale + _bonusPool <= totalSupply());
     /* require(_proposalVotingTime >= 60 * 60 * 24 * 14); */
@@ -147,7 +155,7 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Crowdfunding events happen here.
    **/
   function () public payable {
-    uint256 tokenCount = tokensPerEth * msg.value/ 10**18;
+    uint256 tokenCount = tokensPerEth * msg.value / 10**18;
     require(tokensSold + tokenCount <= tokensForSale);
     _transferFrom(this, msg.sender, tokenCount);
   }
@@ -160,6 +168,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     profitInContract += msg.value;
     Profit(msg.sender, msg.value, totalProfit, profitInContract);
     if (bonusesDistributed >= bonusPool) return;
+    uint256 bonusTokens = tokensPerEth / 1000 * msg.value * 10**18;
     if (bonusesDistributed + bonusTokens > bonusPool) {
       // The edge case of bonus distribution finishing
       // Pay out the remainder of the bonus pool
@@ -167,7 +176,6 @@ contract BlockLeaseDAC is ERC20, DAC {
       _transferFrom(this, msg.sender, actualBonus);
       bonusesDistributed = bonusPool;
     } else {
-      uint256 bonusTokens = tokensPerEth / 1000 * msg.value * 10**18;
       _transferFrom(this, msg.sender, bonusTokens);
       bonusesDistributed += bonusTokens;
     }
@@ -197,14 +205,12 @@ contract BlockLeaseDAC is ERC20, DAC {
 
   function _withdrawProfit(address _from) public returns (bool) {
     updateProfitBalance(_from);
-    if (profitBalances[_from] > 0) {
-      uint256 balance = profitBalances[_from];
-      profitInContract -= balance;
-      profitBalances[_from] -= balance;
-      return _from.send(balance);
-    } else {
-      return true;
-    }
+    if (profitBalances[_from] <= 0) return true;
+    uint256 balance = profitBalances[_from];
+    profitInContract -= balance;
+    profitBalances[_from] -= balance;
+    _from.transfer(balance);
+    return true;
   }
 
   /**
