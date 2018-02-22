@@ -46,6 +46,12 @@ async function waitForBlock(num) {
   }
 }
 
+async function votingEndBlock(contract) {
+  const votingBlockCount = await contract.votingBlockCount.call();
+  const proposal = await activeProposal(contract);
+  return +proposal[4] + +votingBlockCount;
+}
+
 async function activeProposal(contract) {
   const proposalNumber = await contract.proposalNumber.call();
   return await contract.proposals.call(proposalNumber);
@@ -69,18 +75,24 @@ contract('BlockLeaseDAC', (accounts) => {
 
   it('should fail to apply initial proposal before voting end block', async () => {
     const contract = await BlockLeaseDAC.deployed();
-    assert(!await applyProposal(contract, accounts[0]));
+    assert(!await applyProposal(contract, accounts[0]), 'Applied proposal prematurely');
+  });
+
+  it('should fail to apply initial proposal from non operator', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    const block = await votingEndBlock(contract);
+
+    console.log(`Waiting until block ${block} to apply initial proposal`);
+    await waitForBlock(block);
+    assert(!await applyProposal(contract, accounts[1]), 'Non-operator applied proposal');
   });
 
   it('should apply initial proposal', async () => {
     const contract = await BlockLeaseDAC.deployed();
-    const votingBlockCount = await contract.votingBlockCount.call();
     const proposal = await activeProposal(contract);
-    const votingPeriodEndBlock = +proposal[4] + +votingBlockCount;
-
-    console.log(`Waiting until block ${votingPeriodEndBlock} to apply initial proposal`);
-    await waitForBlock(votingPeriodEndBlock); // wait an extra couple blocks to be safe
-    assert(!await applyProposal(contract, accounts[1]), 'Non-operator applied proposal');
+    
+    const block = await votingEndBlock(contract);
+    await waitForBlock(block);
     assert(await applyProposal(contract, accounts[0]), 'Failed to apply proposal');
 
     const tokensForSale = await contract.tokensForSale.call();
