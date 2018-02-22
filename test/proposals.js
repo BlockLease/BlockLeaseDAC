@@ -3,149 +3,164 @@
 const BlockLeaseDAC = artifacts.require('./BlockLeaseDAC.sol');
 
 async function bootstrap(contract, operator) {
-  /**
-   * Ensure that the totalSupply was transferred from 0x0 to the contract
-   * address during construction.
-   **/
-  await contract.bootstrap(100000000, 200000, 100000000, 15, {
-    from: operator
+  return throwToBool(async () => {
+    await contract.bootstrap(100000000, 200000, 100000000, 2, {
+      from: operator
+    });
   });
-  const balance = await contract.balanceOf.call(contract.address);
-  const totalSupply = await contract.totalSupply.call();
-  assert.equal(balance.toString(), totalSupply.toString());
+}
 
-  /**
-   * Apply the initial proposal. Attempting to apply the proposal before the
-   * end of the proposal voting time.
-   *
-   * This try catch verifies that functionality. Test contracts are deployed
-   * with a 15 second vote time by default.
-   **/
-  let thrown = false;
-  try {
+async function applyProposal(contract, operator) {
+  return await throwToBool(async () => {
     await contract.applyProposal({
       from: operator
     });
+  });
+}
+
+/**
+ * Catch any thrown value and return false instead
+ **/
+async function throwToBool(fn, ...args) {
+  let thrown = false;
+  try {
+    await fn(...args);
   } catch (err) {
     thrown = true;
   } finally {
-    if (!thrown) throw new Error('Apply proposal should have failed');
+    return !thrown;
   }
+}
 
+async function activeProposal(contract) {
+  const proposalNumber = await contract.proposalNumber.call();
+  return await contract.proposals.call(proposalNumber);
 }
 
 contract('BlockLeaseDAC', (accounts) => {
 
-  it('should deploy and transfer totalSupply to contract address', async () => {
+  it('should fail to bootstrap from non operator', async () => {
     const contract = await BlockLeaseDAC.deployed();
-    await bootstrap(contract, accounts[0]);
-    const contractBalance = await contract.balanceOf.call(contract.address);
-    const totalSupply = await contract.totalSupply.call();
-    assert.equal(contractBalance.toString(), totalSupply.toString());
-    const proposal = await contract.proposals.call(0);
-    while (await contract.isVoteActive.call()) {
-      await new Promise(r => setTimeout(r, 5000));
-    }
-    await new Promise(r => setTimeout(r, 15000));
-    try {
-      console.log(await contract.applyProposal({
-        from: accounts[0]
-      }));
-    } catch (err) {
-      console.log(err);
-      throw err;
-    }
-    // const tokensForSale = await contract.tokensForSale.call();
-    // const tokensPerEth = await contract.tokensPerEth.call();
-    // const bonusPool = await contract.bonusPool.call();
-    // assert.equal(tokensForSale.toString(), proposal[0].toString());
-    // assert.equal(tokensPerEth.toString(), proposal[1].toString());
-    // assert.equal(bonusPool.toString(), proposal[2].toString());
+    assert(!await bootstrap(contract, accounts[1]));
   });
 
-  // it('should fail to create a new proposal if not operator', async () => {
-  //   const contract = await BlockLeaseDAC.deployed();
-  //   try {
-  //     await contract.createProposal({
-  //       from: accounts[1]
-  //     });
-  //   } catch (err) {
-  //     return;
-  //   }
-  //   throw new Error('Non-operator account should not create proposal');
-  // });
-  //
-  // it('should fail to create invalid proposals', async () => {
-  //   const contract = await BlockLeaseDAC.deployed();
-  //   const tokensForSale = await contract.tokensForSale.call();
-  //   const tokensPerEth = await contract.tokensPerEth.call();
-  //   const bonusPool = await contract.bonusPool.call();
-  //   const proposalVotingTime = await contract.proposalVotingTime.call();
-  //   // Testing failure conditions of createProposal
-  //   let thrown = false;
-  //   try {
-  //     await contract.createProposal(
-  //       tokensForSale - 1,
-  //       tokensPerEth,
-  //       bonusPool,
-  //       proposalVotingTime,
-  //       {
-  //         from: accounts[0]
-  //       }
-  //     );
-  //   } catch (err) {
-  //     thrown = true;
-  //   } finally {
-  //     if (!thrown) throw new Error('Should fail to propose decrease in tokensForSale');
-  //     thrown = false;
-  //   }
-  //   try {
-  //     await contract.createProposal(
-  //       tokensForSale,
-  //       tokensPerEth - 1,
-  //       bonusPool,
-  //       proposalVotingTime,
-  //       {
-  //         from: accounts[0]
-  //       }
-  //     );
-  //   } catch (err) {
-  //     thrown = true;
-  //   } finally {
-  //     if (!thrown) throw new Error('Should fail to propose decrease in tokensPerEth');
-  //     thrown = false;
-  //   }
-  //   try {
-  //     await contract.createProposal(
-  //       tokensForSale,
-  //       tokensPerEth,
-  //       bonusPool - 1,
-  //       proposalVotingTime,
-  //       {
-  //         from: accounts[0]
-  //       }
-  //     );
-  //   } catch (err) {
-  //     thrown = true;
-  //   } finally {
-  //     if (!thrown) throw new Error('Should fail to propose decrease in bonusPool');
-  //     thrown = false;
-  //   }
-  //   try {
-  //     await contract.createProposal(
-  //       tokensForSale,
-  //       tokensPerEth,
-  //       bonusPool,
-  //       {
-  //         from: accounts[1]
-  //       }
-  //     );
-  //   } catch (err) {
-  //     thrown = true;
-  //   } finally {
-  //     if (!thrown) throw new Error('Should fail to propose from a non-operator address');
-  //     thrown = false;
-  //   }
-  // });
+  it('should bootstrap', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    assert(await bootstrap(contract, accounts[0]));
+
+    const balance = await contract.balanceOf.call(contract.address);
+    const totalSupply = await contract.totalSupply.call();
+    assert.equal(balance.toString(), totalSupply.toString(), 'Contract balance is incorrect');
+  });
+
+  it('should fail to apply initial proposal before voting end block', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    assert(!await applyProposal(contract, accounts[0]));
+  });
+
+  it('should apply initial proposal', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    const votingBlockCount = await contract.votingBlockCount.call();
+    const proposal = await activeProposal(contract);
+    const votingPeriodEndBlock = +proposal[4] + +votingBlockCount;
+    console.log(`Waiting until block ${votingPeriodEndBlock} to apply initial proposal`);
+    while (web3.blockNumber < votingPeriodEndBlock + 2 /* wait an extra block to be safe */) {
+      await new Promise(r => setTimeout(r, 5000))
+    }
+    assert(!await applyProposal(contract, accounts[1]), 'Non-operator applied proposal');
+    assert(await applyProposal(contract, accounts[0]), 'Failed to apply proposal');
+
+    const tokensForSale = await contract.tokensForSale.call();
+    const tokensPerEth = await contract.tokensPerEth.call();
+    const bonusPool = await contract.bonusPool.call();
+    assert.equal(tokensForSale.toString(), proposal[0].toString(), 'Tokens for sale is incorrect');
+    assert.equal(tokensPerEth.toString(), proposal[1].toString(), 'Tokens per eth is incorrect');
+    assert.equal(bonusPool.toString(), proposal[2].toString(), 'Bonus pool is incorrect');
+  });
+
+  it('should fail to create a new proposal if not operator', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    try {
+      await contract.createProposal({
+        from: accounts[1]
+      });
+    } catch (err) {
+      return;
+    }
+    throw new Error('Non-operator account should not create proposal');
+  });
+
+  xit('should fail to create invalid proposals', async () => {
+    const contract = await BlockLeaseDAC.deployed();
+    const tokensForSale = await contract.tokensForSale.call();
+    const tokensPerEth = await contract.tokensPerEth.call();
+    const bonusPool = await contract.bonusPool.call();
+    const proposalVotingTime = await contract.proposalVotingTime.call();
+    // Testing failure conditions of createProposal
+    let thrown = false;
+    try {
+      await contract.createProposal(
+        tokensForSale - 1,
+        tokensPerEth,
+        bonusPool,
+        proposalVotingTime,
+        {
+          from: accounts[0]
+        }
+      );
+    } catch (err) {
+      thrown = true;
+    } finally {
+      if (!thrown) throw new Error('Should fail to propose decrease in tokensForSale');
+      thrown = false;
+    }
+    try {
+      await contract.createProposal(
+        tokensForSale,
+        tokensPerEth - 1,
+        bonusPool,
+        proposalVotingTime,
+        {
+          from: accounts[0]
+        }
+      );
+    } catch (err) {
+      thrown = true;
+    } finally {
+      if (!thrown) throw new Error('Should fail to propose decrease in tokensPerEth');
+      thrown = false;
+    }
+    try {
+      await contract.createProposal(
+        tokensForSale,
+        tokensPerEth,
+        bonusPool - 1,
+        proposalVotingTime,
+        {
+          from: accounts[0]
+        }
+      );
+    } catch (err) {
+      thrown = true;
+    } finally {
+      if (!thrown) throw new Error('Should fail to propose decrease in bonusPool');
+      thrown = false;
+    }
+    try {
+      await contract.createProposal(
+        tokensForSale,
+        tokensPerEth,
+        bonusPool,
+        {
+          from: accounts[1]
+        }
+      );
+    } catch (err) {
+      thrown = true;
+    } finally {
+      if (!thrown) throw new Error('Should fail to propose from a non-operator address');
+      thrown = false;
+    }
+  });
 
 });

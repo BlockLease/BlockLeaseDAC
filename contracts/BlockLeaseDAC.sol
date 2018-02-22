@@ -26,8 +26,8 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint256 tokensForSale;
     uint256 tokensPerEth;
     uint256 bonusPool;
-    uint256 proposalVotingTime;
-    uint256 timestamp;
+    uint256 votingBlockCount;
+    uint256 blockNumber;
     uint256 totalVotes;
   }
 
@@ -46,10 +46,10 @@ contract BlockLeaseDAC is ERC20, DAC {
   uint256 public proposalNumber;
   Proposal[] public proposals;
   mapping (uint256 => mapping (address => uint256)) votesPerProposal;
-  bool lastProposalApplied;
+  bool public lastProposalApplied;
 
   // 14 days
-  uint256 public proposalVotingTime;
+  uint256 public votingBlockCount;
 
   /**
    * DAC Profit Management
@@ -71,8 +71,7 @@ contract BlockLeaseDAC is ERC20, DAC {
   function BlockLeaseDAC() public {
     operators[msg.sender] = true;
     lastProposalApplied = true;
-    proposalVotingTime = 15;
-    tokensPerEth = 400000;
+    votingBlockCount = 5;
     balances[0x0] = totalSupply();
   }
 
@@ -81,12 +80,12 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint256 _tokensForSale,
     uint256 _tokensPerEth,
     uint256 _bonusPool,
-    uint256 _proposalVotingTime
+    uint256 _votingBlockCount
   ) public {
     require(operators[msg.sender]);
     require(!_bootstrapped);
     _transferFrom(0x0, this, totalSupply());
-    createProposal(_tokensForSale, _tokensPerEth, _bonusPool, _proposalVotingTime);
+    createProposal(_tokensForSale, _tokensPerEth, _bonusPool, _votingBlockCount);
     _bootstrapped = true;
   }
 
@@ -104,7 +103,7 @@ contract BlockLeaseDAC is ERC20, DAC {
    **/
 
   function applyProposal() public {
-    if (lastProposalApplied) return;
+    require(!lastProposalApplied);
     require(operators[msg.sender]);
     require(proposals.length > 0);
     require(!isVoteActive());
@@ -112,28 +111,31 @@ contract BlockLeaseDAC is ERC20, DAC {
     tokensForSale = proposals[proposalNumber].tokensForSale;
     tokensPerEth = proposals[proposalNumber].tokensPerEth;
     bonusPool = proposals[proposalNumber].bonusPool;
-    proposalVotingTime = proposals[proposalNumber].proposalVotingTime;
+    votingBlockCount = proposals[proposalNumber].votingBlockCount;
     lastProposalApplied = true;
   }
 
   function isVoteActive() public constant returns (bool) {
     if (proposals.length == 0) return false;
-    return block.timestamp < proposals[proposalNumber].timestamp + proposalVotingTime;
+    return (
+      block.number < proposals[proposalNumber].blockNumber + votingBlockCount &&
+      block.number >= proposals[proposalNumber].blockNumber
+    );
   }
 
-  function createProposal(uint256 _tokensForSale, uint256 _tokensPerEth, uint256 _bonusPool, uint256 _proposalVotingTime) public {
-    applyProposal();
+  function createProposal(uint256 _tokensForSale, uint256 _tokensPerEth, uint256 _bonusPool, uint256 _votingBlockCount) public {
+    if (!lastProposalApplied) applyProposal();
     require(!isVoteActive());
     require(operators[msg.sender]);
     require(_tokensForSale >= tokensForSale);
     require(_tokensPerEth <= tokensPerEth);
     require(_bonusPool >= bonusPool);
     require(_tokensForSale + _bonusPool <= totalSupply());
-    /* require(_proposalVotingTime >= 60 * 60 * 24 * 14); */
+    /* require(_votingBlockCount >= 60 * 60 * 24 * 14); */
     if (proposals.length != 0) {
       proposalNumber++;
     }
-    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _proposalVotingTime, block.timestamp, 0));
+    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _votingBlockCount, block.number, 0));
     lastProposalApplied = false;
   }
 
