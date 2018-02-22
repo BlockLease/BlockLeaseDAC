@@ -22,17 +22,34 @@ interface DAC {
 
 contract BlockLeaseDAC is ERC20, DAC {
 
-  mapping (address => bool) operators;
+  struct Proposal {
+    uint256 tokensForSale;
+    uint256 tokensPerEth;
+    uint256 bonusPool;
+    uint256 proposalVotingTime;
+    uint256 timestamp;
+    uint256 totalVotes;
+  }
 
-  mapping (address => uint256) public balances;
-  mapping (address => mapping (address => uint256)) public allowances;
+  mapping (address => bool) public operators;
+
+  mapping (address => uint256) balances;
+  mapping (address => mapping (address => uint256)) allowances;
 
   uint256 public tokensForSale;
   uint256 public tokensSold;
   uint256 public tokensPerEth;
 
-  uint256 public bonusPool = 100000000;
-  uint256 public bonusesDistributed = 0;
+  uint256 public bonusPool;
+  uint256 public bonusesDistributed;
+
+  uint256 public proposalNumber;
+  Proposal[] public proposals;
+  mapping (uint256 => mapping (address => uint256)) votesPerProposal;
+  bool lastProposalApplied;
+
+  // 14 days
+  uint256 public proposalVotingTime;
 
   /**
    * DAC Profit Management
@@ -48,15 +65,21 @@ contract BlockLeaseDAC is ERC20, DAC {
   // Profit balances available for withdrawal
   mapping (address => uint256) profitBalances;
 
-  function BlockLeaseDAC() public {
+  /**
+   * Constructor
+   **/
+  function BlockLeaseDAC(
+    uint256 _tokensForSale,
+    uint256 _tokensPerEth,
+    uint256 _bonusPool,
+    uint256 _proposalVotingTime
+  ) public {
     operators[msg.sender] = true;
-    tokensForSale = 100000000;
-    tokensPerEth = 200000;
-
+    lastProposalApplied = true;
     balances[0x0] = totalSupply();
-    balances[0x0] = 0;
-    balances[this] = totalSupply();
-    Transfer(0x0, this, totalSupply());
+    proposalVotingTime = 15;
+    createProposal(_tokensForSale, _tokensPerEth, _bonusPool, _proposalVotingTime);
+    require(_transferFrom(0x0, this, totalSupply()));
   }
 
   function withdraw(address _target, uint256 _amount) public {
@@ -69,10 +92,62 @@ contract BlockLeaseDAC is ERC20, DAC {
   }
 
   /**
+   * Proposal voting
+   **/
+
+  function applyProposal() public {
+    if (lastProposalApplied) return;
+    require(operators[msg.sender]);
+    require(proposals.length > 0);
+    require(!isVoteActive());
+    require(proposals[proposalNumber].totalVotes >= tokensSold / 2);
+    tokensForSale = proposals[proposalNumber].tokensForSale;
+    tokensPerEth = proposals[proposalNumber].tokensPerEth;
+    bonusPool = proposals[proposalNumber].bonusPool;
+    proposalVotingTime = proposals[proposalNumber].proposalVotingTime;
+    lastProposalApplied = true;
+  }
+
+  function isVoteActive() public constant returns (bool) {
+    if (proposals.length == 0) return false;
+    return block.timestamp < proposals[proposalNumber].timestamp + proposalVotingTime;
+  }
+
+  function createProposal(uint256 _tokensForSale, uint256 _tokensPerEth, uint256 _bonusPool, uint256 _proposalVotingTime) public {
+    applyProposal();
+    require(!isVoteActive());
+    require(operators[msg.sender]);
+    require(_tokensForSale >= tokensForSale);
+    require(_tokensPerEth >= tokensPerEth);
+    require(_bonusPool >= bonusPool);
+    require(_tokensForSale + _bonusPool <= totalSupply());
+    /* require(_proposalVotingTime >= 60 * 60 * 24 * 14); */
+    if (proposals.length != 0) {
+      proposalNumber++;
+    }
+    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _proposalVotingTime, block.timestamp, 0));
+    lastProposalApplied = false;
+  }
+
+  function vote() public {
+    require(isVoteActive());
+    uint256 previousVote = votesPerProposal[proposalNumber][msg.sender];
+    proposals[proposalNumber].totalVotes -= previousVote;
+    votesPerProposal[proposalNumber][msg.sender] = balances[msg.sender];
+    proposals[proposalNumber].totalVotes += balances[msg.sender];
+  }
+
+  function updateVotes(address _from) public {
+    if (!isVoteActive()) return;
+    if (votesPerProposal[proposalNumber][_from] <= balances[_from]) return;
+    votesPerProposal[proposalNumber][_from] = balances[_from];
+  }
+
+  /**
    * Crowdfunding events happen here.
    **/
   function () public payable {
-    uint256 tokenCount = tokensPerEth * msg.value;
+    uint256 tokenCount = tokensPerEth * msg.value/ 10**18;
     require(tokensSold + tokenCount <= tokensForSale);
     _transferFrom(this, msg.sender, tokenCount);
   }
@@ -92,7 +167,7 @@ contract BlockLeaseDAC is ERC20, DAC {
       _transferFrom(this, msg.sender, actualBonus);
       bonusesDistributed = bonusPool;
     } else {
-      uint256 bonusTokens = tokensPerEth / 1000 * msg.value;
+      uint256 bonusTokens = tokensPerEth / 1000 * msg.value * 10**18;
       _transferFrom(this, msg.sender, bonusTokens);
       bonusesDistributed += bonusTokens;
     }
@@ -105,14 +180,15 @@ contract BlockLeaseDAC is ERC20, DAC {
    * This should be called prior to every token transfer to ensure that profit
    * is continuously proportionately settled to token holders.
    **/
-  function updateProfitBalance(address _user) public returns (bool) {
+  function updateProfitBalance(address _user) public {
     if (lastTotalProfitCredited[_user] >= totalProfit) return;
     profitBalances[_user] = latestProfitBalance(_user);
     lastTotalProfitCredited[_user] = totalProfit;
   }
 
   function latestProfitBalance(address _user) public constant returns (uint256) {
-    return profitBalances[_user] + (totalProfit - lastTotalProfitCredited[_user]) / totalSupply();
+    uint256 owedBalance = (totalProfit - lastTotalProfitCredited[_user]) * balances[_user] / totalSupply();
+    return profitBalances[_user] + owedBalance;
   }
 
   function withdrawProfit() public returns (bool) {
@@ -172,6 +248,8 @@ contract BlockLeaseDAC is ERC20, DAC {
     balances[_from] -= _value;
     balances[_to] += _value;
     Transfer(_from, _to, _value);
+    updateVotes(_from);
+    updateVotes(_to);
     return true;
   }
 
