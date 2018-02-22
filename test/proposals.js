@@ -41,9 +41,9 @@ async function throwToBool(fn, ...args) {
 }
 
 async function waitForBlock(num) {
-  do {
-    if (web3.eth.blockNumber >= num) return;
-  } while (await new Promise(r => setTimeout(r, 1000)));
+  while (web3.eth.blockNumber < +num) {
+    await new Promise(r => setTimeout(r, 1000));
+  }
 }
 
 async function waitForNextBlock() {
@@ -81,10 +81,9 @@ contract('BlockLeaseDAC', (accounts) => {
     const votingBlockCount = await contract.votingBlockCount.call();
     const proposal = await activeProposal(contract);
     const votingPeriodEndBlock = +proposal[4] + +votingBlockCount;
+
     console.log(`Waiting until block ${votingPeriodEndBlock} to apply initial proposal`);
-    while (web3.blockNumber < votingPeriodEndBlock + 2 /* wait an extra couple blocks to be safe */) {
-      await new Promise(r => setTimeout(r, 5000))
-    }
+    await waitForBlock(votingPeriodEndBlock); // wait an extra couple blocks to be safe
     assert(!await applyProposal(contract, accounts[1]), 'Non-operator applied proposal');
     assert(await applyProposal(contract, accounts[0]), 'Failed to apply proposal');
 

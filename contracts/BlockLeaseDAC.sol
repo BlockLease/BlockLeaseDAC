@@ -77,7 +77,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     operators[msg.sender] = true;
     lastProposalApplied = true;
     tokensPerEth = totalSupply();
-    votingBlockCount = 5;
+    votingBlockCount = 2;
     balances[0x0] = totalSupply();
   }
 
