@@ -1,5 +1,7 @@
 # BlockLeaseDAC
 
+[![CircleCI](https://img.shields.io/circleci/project/github/BlockLease/BlockLeaseDAC.svg)](https://circleci.com/gh/BlockLease/BlockLeaseDAC)
+
 The BlockLease Decentralized Autonomous Collective is a smart contract that defines an ERC20 token with the symbol `LEASE`.
 
 ## Profit Mechanism
