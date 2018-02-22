@@ -1,5 +1,5 @@
 master_build: &MasterBuild |
-  npm i -g truffle@latest
+  npm i -gs truffle@latest
   truffle test
 
 version: 2
