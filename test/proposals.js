@@ -46,10 +46,6 @@ async function waitForBlock(num) {
   }
 }
 
-async function waitForNextBlock() {
-  return waitForBlock(web3.eth.blockNumber + 1);
-}
-
 async function activeProposal(contract) {
   const proposalNumber = await contract.proposalNumber.call();
   return await contract.proposals.call(proposalNumber);
