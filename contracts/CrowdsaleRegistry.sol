@@ -2,6 +2,10 @@ pragma solidity ^0.4.19;
 
 contract CrowdsaleRegistry {
 
+  event ParticipantAdded(address _participant, bytes32 _encryptedPhone);
+  event ConfirmationCodeSubmitted(address _participant, uint _confirmationCode);
+  event ParticipantApproved(address _participant);
+
   struct CrowdsaleEntry {
     address participant;
     string encryptedEmail;
@@ -43,14 +47,17 @@ contract CrowdsaleRegistry {
       false
     );
     registeredPhones[_encryptedPhone] = true;
+    ParticipantAdded(msg.sender, _encryptedPhone);
   }
 
-  function setConfirmationCode(uint _code) public {
-    participants[msg.sender].confirmationCode = _code;
+  function setConfirmationCode(uint _confirmationCode) public {
+    participants[msg.sender].confirmationCode = _confirmationCode;
+    ConfirmationCodeSubmitted(msg.sender, _confirmationCode);
   }
 
   function approveEntry(address _participant) public operator {
     participants[_participant].approved = true;
+    ParticipantApproved(_participant);
   }
 
   function unapproveEntry(address _participant) public operator {
