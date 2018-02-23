@@ -15,6 +15,10 @@ interface ERC20 {
   event Approval(address indexed _owner, address indexed _spender, uint256 _value);
 }
 
+interface CrowdsaleRegistry {
+  function isApproved(address _participant) public constant returns (bool);
+}
+
 interface DAC {
   event Profit(address indexed _from, uint256 _value, uint256 _totalProfit, uint256 _profitInContract);
   function pay() external payable;
@@ -65,6 +69,8 @@ contract BlockLeaseDAC is ERC20, DAC {
   // Profit balances available for withdrawal
   mapping (address => uint256) profitBalances;
 
+  address public crowdsaleRegistry;
+
   modifier operatorOnly() {
     require(operators[msg.sender]);
     _;
@@ -73,8 +79,9 @@ contract BlockLeaseDAC is ERC20, DAC {
   /**
    * Constructor
    **/
-  function BlockLeaseDAC() public {
+  function BlockLeaseDAC(address _crowdsaleRegistry) public {
     operators[msg.sender] = true;
+    crowdsaleRegistry = _crowdsaleRegistry;
     lastProposalApplied = true;
     tokensPerEth = totalSupply();
     votingBlockCount = 5;
@@ -174,6 +181,7 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Crowdfunding events happen here.
    **/
   function () public payable {
+    require(CrowdsaleRegistry(crowdsaleRegistry).isApproved(msg.sender));
     uint256 tokenCount = tokensPerEth * msg.value / 10**18;
     require(tokensSold + tokenCount <= tokensForSale);
     _transferFrom(this, msg.sender, tokenCount);
