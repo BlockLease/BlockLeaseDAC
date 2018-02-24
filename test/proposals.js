@@ -1,26 +1,27 @@
 'use strict';
 
+const CrowdsaleRegistry = artifacts.require('./CrowdsaleRegistry.sol');
 const BlockLeaseDAC = artifacts.require('./BlockLeaseDAC.sol');
 
-async function bootstrap(contract, operator) {
+async function bootstrap(dac, operator) {
   return throwToBool(async () => {
-    await contract.bootstrap(0, await contract.totalSupply.call(), 0, 2, {
+    await dac.bootstrap(0, await dac.totalSupply.call(), 0, 2, {
       from: operator
     });
   });
 }
 
-async function createProposal(contract, operator, args) {
+async function createProposal(dac, operator, args) {
   return await throwToBool(async () => {
-    await contract.createProposal(...args, {
+    await dac.createProposal(...args, {
       from: operator
     });
   });
 }
 
-async function applyProposal(contract, operator) {
+async function applyProposal(dac, operator) {
   return await throwToBool(async () => {
-    await contract.applyProposal({
+    await dac.applyProposal({
       from: operator
     });
   });
@@ -42,110 +43,110 @@ async function throwToBool(fn, ...args) {
 
 async function waitForBlock(num) {
   while (web3.eth.blockNumber < +num) {
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 200));
   }
 }
 
-async function votingEndBlock(contract) {
-  const votingBlockCount = await contract.votingBlockCount.call();
-  const proposal = await activeProposal(contract);
+async function votingEndBlock(dac) {
+  const votingBlockCount = await dac.votingBlockCount.call();
+  const proposal = await activeProposal(dac);
   return +proposal[4] + +votingBlockCount;
 }
 
-async function activeProposal(contract) {
-  const proposalNumber = await contract.proposalNumber.call();
-  return await contract.proposals.call(proposalNumber);
+async function activeProposal(dac) {
+  const proposalNumber = await dac.proposalNumber.call();
+  return await dac.proposals.call(proposalNumber);
 }
 
 contract('BlockLeaseDAC', (accounts) => {
 
   it('should fail to bootstrap from non operator', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    assert(!await bootstrap(contract, accounts[1]));
+    const dac = await BlockLeaseDAC.deployed();
+    assert(!await bootstrap(dac, accounts[1]));
   });
 
   it('should bootstrap', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    assert(await bootstrap(contract, accounts[0]), 'Error bootstrapping');
+    const dac = await BlockLeaseDAC.deployed();
+    assert(await bootstrap(dac, accounts[0]), 'Error bootstrapping');
 
-    const balance = await contract.balanceOf.call(contract.address);
-    const totalSupply = await contract.totalSupply.call();
+    const balance = await dac.balanceOf.call(dac.address);
+    const totalSupply = await dac.totalSupply.call();
     assert.equal(balance.toString(), totalSupply.toString(), 'Contract balance is incorrect');
   });
 
   it('should fail to apply initial proposal before voting end block', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    assert(!await applyProposal(contract, accounts[0]), 'Applied proposal prematurely');
+    const dac = await BlockLeaseDAC.deployed();
+    assert(!await applyProposal(dac, accounts[0]), 'Applied proposal prematurely');
   });
 
   it('should fail to apply initial proposal from non operator', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    const block = await votingEndBlock(contract);
+    const dac = await BlockLeaseDAC.deployed();
+    const block = await votingEndBlock(dac);
 
     console.log(`Waiting until block ${block} to apply initial proposal`);
     await waitForBlock(block);
-    assert(!await applyProposal(contract, accounts[1]), 'Non-operator applied proposal');
+    assert(!await applyProposal(dac, accounts[1]), 'Non-operator applied proposal');
   });
 
   it('should apply initial proposal', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    const proposal = await activeProposal(contract);
-    
-    const block = await votingEndBlock(contract);
-    await waitForBlock(block);
-    assert(await applyProposal(contract, accounts[0]), 'Failed to apply proposal');
+    const dac = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(dac);
 
-    const tokensForSale = await contract.tokensForSale.call();
-    const tokensPerEth = await contract.tokensPerEth.call();
-    const bonusPool = await contract.bonusPool.call();
+    const block = await votingEndBlock(dac);
+    await waitForBlock(block);
+    assert(await applyProposal(dac, accounts[0]), 'Failed to apply proposal');
+
+    const tokensForSale = await dac.tokensForSale.call();
+    const tokensPerEth = await dac.tokensPerEth.call();
+    const bonusPool = await dac.bonusPool.call();
     assert.equal(tokensForSale.toString(), proposal[0].toString(), 'Tokens for sale is incorrect');
     assert.equal(tokensPerEth.toString(), proposal[1].toString(), 'Tokens per eth is incorrect');
     assert.equal(bonusPool.toString(), proposal[2].toString(), 'Bonus pool is incorrect');
   });
 
   it('should fail to create a new proposal if not operator', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    const proposal = await activeProposal(contract);
-    assert(!await createProposal(contract, accounts[1], proposal), 'Non-operator created proposal');
+    const dac = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(dac);
+    assert(!await createProposal(dac, accounts[1], proposal), 'Non-operator created proposal');
   });
 
   it('should fail to create proposal with lower tokensForSale value', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    const proposal = await activeProposal(contract);
+    const dac = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(dac);
     proposal[0] = proposal[0] - 1;
-    assert(!await createProposal(contract, accounts[0], proposal), 'Decreased tokensForSale in proposal');
+    assert(!await createProposal(dac, accounts[0], proposal), 'Decreased tokensForSale in proposal');
   });
 
   it('should fail to create proposal with higher tokensPerEth value', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    const proposal = await activeProposal(contract);
+    const dac = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(dac);
     proposal[1] = +proposal[1] + 1;
-    assert(!await createProposal(contract, accounts[0], proposal, 'Increased tokensPerEth in proposal'));
+    assert(!await createProposal(dac, accounts[0], proposal, 'Increased tokensPerEth in proposal'));
   });
 
   it('should fail to create proposal with lower bonusPool value', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    const proposal = await activeProposal(contract);
+    const dac = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(dac);
     proposal[2] = +proposal[2] - 1;
-    assert(!await createProposal(contract, accounts[0], proposal, 'Decreased bonusPool in proposal'));
+    assert(!await createProposal(dac, accounts[0], proposal, 'Decreased bonusPool in proposal'));
   });
 
   it('should fail to create proposal with 0 proposalVotingTime', async () => {
-    const contract = await BlockLeaseDAC.deployed();
-    const proposal = await activeProposal(contract);
+    const dac = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(dac);
     proposal[3] = 0;
-    assert(!await createProposal(contract, accounts[0], proposal, 'Set proposalVotingTime to 0 in proposal'));
+    assert(!await createProposal(dac, accounts[0], proposal, 'Set proposalVotingTime to 0 in proposal'));
   });
 
   it('should create a proposal', async () => {
-    const contract = await BlockLeaseDAC.deployed();
+    const dac = await BlockLeaseDAC.deployed();
     const proposal = [
       100000000,
       200000,
       100000000,
       2
     ];
-    assert(await createProposal(contract, accounts[0], proposal), 'Failed to create proposal');
+    assert(await createProposal(dac, accounts[0], proposal), 'Failed to create proposal');
   });
 
 });

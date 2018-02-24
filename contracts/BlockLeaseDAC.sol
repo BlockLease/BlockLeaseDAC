@@ -79,9 +79,9 @@ contract BlockLeaseDAC is ERC20, DAC {
   /**
    * Constructor
    **/
-  function BlockLeaseDAC(address _crowdsaleRegistry) public {
+  function BlockLeaseDAC(/* address _crowdsaleRegistry */) public {
     operators[msg.sender] = true;
-    crowdsaleRegistry = _crowdsaleRegistry;
+    /* crowdsaleRegistry = _crowdsaleRegistry; */
     lastProposalApplied = true;
     tokensPerEth = totalSupply();
     votingBlockCount = 5;
