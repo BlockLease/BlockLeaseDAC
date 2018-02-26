@@ -262,6 +262,10 @@ contract BlockLeaseDAC is ERC20, DAC {
     return true;
   }
 
+  function circulatingSupply() public constant returns (uint) {
+    return tokensSold + bonusTokensDistributed + devTokensDistributed;
+  }
+
   /**
    * ERC20 Implementation
    **/
@@ -280,10 +284,6 @@ contract BlockLeaseDAC is ERC20, DAC {
 
   function totalSupply() public constant returns (uint) {
     return 1000000000;
-  }
-
-  function circulatingSupply() public constant returns (uint) {
-    return tokensSold + bonusTokensDistributed + devTokensDistributed;
   }
 
   function balanceOf(address _owner) public constant returns (uint) {
