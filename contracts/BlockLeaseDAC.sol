@@ -124,6 +124,9 @@ contract BlockLeaseDAC is ERC20, DAC {
     _bootstrapped = true;
   }
 
+  /**
+   * Withdraw funds from the contract for use
+   **/
   function withdraw(address _target, uint _amount) public operatorOnly {
     // First throw if amount is greater than balance to avoid sign issues
     require(this.balance >= _amount);
@@ -131,10 +134,6 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(this.balance - _amount >= profitInContract);
     _target.transfer(_amount);
   }
-
-  /**
-   * Proposal voting
-   **/
 
   /**
    * Create a proposal to modify certain state variables
@@ -218,7 +217,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     profitInContract += msg.value;
     Profit(msg.sender, msg.value, totalProfit, profitInContract);
     if (bonusesDistributed >= bonusPool) return;
-    uint bonusTokens = tokensPerEth / 1000 * msg.value * 10**18;
+    uint bonusTokens = tokensPerEth / 100 * msg.value * 10**18;
     if (bonusesDistributed + bonusTokens > bonusPool) {
       // The edge case of bonus distribution finishing
       // Pay out the remainder of the bonus pool
@@ -244,15 +243,24 @@ contract BlockLeaseDAC is ERC20, DAC {
     lastTotalProfitCredited[_user] = totalProfit;
   }
 
+  /**
+   * Retrieve the up to date profit balance without mutating state
+   **/
   function latestProfitBalance(address _user) public constant returns (uint) {
     uint owedBalance = (totalProfit - lastTotalProfitCredited[_user]) * balances[_user] / totalSupply();
     return profitBalances[_user] + owedBalance;
   }
 
+  /**
+   * Helper method to withdraw
+   **/
   function withdrawProfit() public returns (bool) {
     return _withdrawProfit(msg.sender);
   }
 
+  /**
+   * Withdraw Ethereum dividends
+   **/
   function _withdrawProfit(address _from) public returns (bool) {
     updateProfitBalance(_from);
     if (profitBalances[_from] <= 0) return true;
