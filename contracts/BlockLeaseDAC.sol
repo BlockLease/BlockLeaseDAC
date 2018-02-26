@@ -1,15 +1,15 @@
 pragma solidity ^0.4.19;
 
 interface ERC20 {
-  function name() external constant returns (string _name);
-  function symbol() external constant returns (string _symbol);
-  function decimals() external constant returns (uint8 _decimals);
+  function name() public constant returns (string _name);
+  function symbol() public constant returns (string _symbol);
+  function decimals() public constant returns (uint8 _decimals);
   function totalSupply() public constant returns (uint _totalSupply);
-  function balanceOf(address _owner) external constant returns (uint balance);
-  function transfer(address _to, uint _value) external returns (bool success);
-  function transferFrom(address _from, address _to, uint _value) external returns (bool success);
-  function approve(address _spender, uint _value) external returns (bool success);
-  function allowance(address _owner, address _spender) external constant returns (uint remaining);
+  function balanceOf(address _owner) public constant returns (uint balance);
+  function transfer(address _to, uint _value) public returns (bool success);
+  function transferFrom(address _from, address _to, uint _value) public returns (bool success);
+  function approve(address _spender, uint _value) public returns (bool success);
+  function allowance(address _owner, address _spender) public constant returns (uint remaining);
 
   event Transfer(address indexed _from, address indexed _to, uint _value);
   event Approval(address indexed _owner, address indexed _spender, uint _value);
@@ -30,6 +30,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint tokensForSale;
     uint tokensPerEth;
     uint bonusPool;
+    uint devPool;
     uint votingBlockCount;
     uint blockNumber;
     uint totalVotes;
@@ -52,13 +53,15 @@ contract BlockLeaseDAC is ERC20, DAC {
   uint public tokensForSale;
   uint public tokensPerEth;
   uint public bonusPool;
+  uint public devPool;
   uint public votingBlockCount;
 
   /**
    * Token state variables
    **/
   uint public tokensSold;
-  uint public bonusesDistributed;
+  uint public bonusTokensDistributed;
+  uint public devTokensDistributed;
 
   uint public proposalNumber;
   Proposal[] public proposals;
@@ -107,21 +110,12 @@ contract BlockLeaseDAC is ERC20, DAC {
     /* crowdsaleRegistry = _crowdsaleRegistry; */
     lastProposalApplied = true;
     tokensPerEth = totalSupply();
-    votingBlockCount = 5;
+    votingBlockCount = 3;
+    proposals.push(
+      Proposal(tokensForSale, tokensPerEth, bonusPool, devPool, votingBlockCount, 0, 0)
+    );
     balances[0x0] = totalSupply();
-  }
-
-  bool _bootstrapped = false;
-  function bootstrap(
-    uint _tokensForSale,
-    uint _tokensPerEth,
-    uint _bonusPool,
-    uint _votingBlockCount
-  ) public operatorOnly {
-    require(!_bootstrapped);
     _transferFrom(0x0, this, totalSupply());
-    createProposal(_tokensForSale, _tokensPerEth, _bonusPool, _votingBlockCount);
-    _bootstrapped = true;
   }
 
   /**
@@ -142,6 +136,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint _tokensForSale,
     uint _tokensPerEth,
     uint _bonusPool,
+    uint _devPool,
     uint _votingBlockCount
   ) public operatorOnly {
     if (!lastProposalApplied) applyProposal();
@@ -149,12 +144,12 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(_tokensForSale >= tokensForSale);
     require(_tokensPerEth <= tokensPerEth);
     require(_bonusPool >= bonusPool);
-    require(_tokensForSale + _bonusPool <= totalSupply());
-    require(_votingBlockCount > 0);
-    if (proposals.length != 0) {
-      proposalNumber++;
-    }
-    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _votingBlockCount, block.number, 0));
+    require(_devPool >= devPool);
+    require(_tokensForSale + _bonusPool + _devPool <= totalSupply());
+    require(_votingBlockCount > 1);
+
+    proposalNumber++;
+    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _devPool, _votingBlockCount, block.number, 0));
     lastProposalApplied = false;
   }
 
@@ -162,28 +157,24 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Apply a voted upon proposal
    **/
   function applyProposal() public operatorOnly {
-    require(!lastProposalApplied);
-    require(proposals.length > 0);
     require(!isVoteActive());
-    if (proposals[proposalNumber].totalVotes < (tokensSold + bonusesDistributed) / 2) {
-      lastProposalApplied = true;
-      return;
+    require(!lastProposalApplied);
+    if (proposals[proposalNumber].totalVotes >= circulatingSupply() / 2) {
+      tokensForSale = proposals[proposalNumber].tokensForSale;
+      tokensPerEth = proposals[proposalNumber].tokensPerEth;
+      bonusPool = proposals[proposalNumber].bonusPool;
+      devPool = proposals[proposalNumber].devPool;
+      votingBlockCount = proposals[proposalNumber].votingBlockCount;
     }
-    tokensForSale = proposals[proposalNumber].tokensForSale;
-    tokensPerEth = proposals[proposalNumber].tokensPerEth;
-    bonusPool = proposals[proposalNumber].bonusPool;
-    votingBlockCount = proposals[proposalNumber].votingBlockCount;
     lastProposalApplied = true;
   }
 
   function isVoteActive() public constant returns (bool) {
-    if (proposals.length == 0) return false;
     return (
-      block.number < proposals[proposalNumber].blockNumber + votingBlockCount &&
-      block.number >= proposals[proposalNumber].blockNumber
+      block.number >= proposals[proposalNumber].blockNumber &&
+      block.number < proposals[proposalNumber].blockNumber + votingBlockCount
     );
   }
-
 
   function vote() public {
     require(isVoteActive());
@@ -216,17 +207,17 @@ contract BlockLeaseDAC is ERC20, DAC {
     totalProfit += msg.value;
     profitInContract += msg.value;
     Profit(msg.sender, msg.value, totalProfit, profitInContract);
-    if (bonusesDistributed >= bonusPool) return;
+    if (bonusTokensDistributed >= bonusPool) return;
     uint bonusTokens = tokensPerEth / 100 * msg.value * 10**18;
-    if (bonusesDistributed + bonusTokens > bonusPool) {
+    if (bonusTokensDistributed + bonusTokens > bonusPool) {
       // The edge case of bonus distribution finishing
       // Pay out the remainder of the bonus pool
-      uint actualBonus = bonusPool - bonusesDistributed;
+      uint actualBonus = bonusPool - bonusTokensDistributed;
       _transferFrom(this, msg.sender, actualBonus);
-      bonusesDistributed = bonusPool;
+      bonusTokensDistributed = bonusPool;
     } else {
       _transferFrom(this, msg.sender, bonusTokens);
-      bonusesDistributed += bonusTokens;
+      bonusTokensDistributed += bonusTokens;
     }
   }
 
@@ -247,7 +238,7 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Retrieve the up to date profit balance without mutating state
    **/
   function latestProfitBalance(address _user) public constant returns (uint) {
-    uint owedBalance = (totalProfit - lastTotalProfitCredited[_user]) * balances[_user] / totalSupply();
+    uint owedBalance = (totalProfit - lastTotalProfitCredited[_user]) * balances[_user] / circulatingSupply();
     return profitBalances[_user] + owedBalance;
   }
 
@@ -271,19 +262,23 @@ contract BlockLeaseDAC is ERC20, DAC {
     return true;
   }
 
+  function circulatingSupply() public constant returns (uint) {
+    return tokensSold + bonusTokensDistributed + devTokensDistributed;
+  }
+
   /**
    * ERC20 Implementation
    **/
 
-  function name() external constant returns (string) {
+  function name() public constant returns (string) {
     return 'BlockLease';
   }
 
-  function symbol() external constant returns (string) {
+  function symbol() public constant returns (string) {
     return 'LEASE';
   }
 
-  function decimals() external constant returns (uint8) {
+  function decimals() public constant returns (uint8) {
     return 8;
   }
 
@@ -291,15 +286,15 @@ contract BlockLeaseDAC is ERC20, DAC {
     return 1000000000;
   }
 
-  function balanceOf(address _owner) external constant returns (uint) {
+  function balanceOf(address _owner) public constant returns (uint) {
     return balances[_owner];
   }
 
-  function transfer(address _to, uint _value) external returns (bool) {
+  function transfer(address _to, uint _value) public returns (bool) {
     return _transferFrom(msg.sender, _to, _value);
   }
 
-  function transferFrom(address _from, address _to, uint _value) external returns (bool) {
+  function transferFrom(address _from, address _to, uint _value) public returns (bool) {
     require(allowances[_from][msg.sender] >= _value);
     allowances[_from][msg.sender] -= _value;
     return _transferFrom(_from, _to, _value);
@@ -317,13 +312,13 @@ contract BlockLeaseDAC is ERC20, DAC {
     return true;
   }
 
-  function approve(address _spender, uint _value) external returns (bool) {
+  function approve(address _spender, uint _value) public returns (bool) {
     allowances[msg.sender][_spender] = _value;
     Approval(msg.sender, _spender, _value);
     return true;
   }
 
-  function allowance(address _owner, address _spender) external constant returns (uint) {
+  function allowance(address _owner, address _spender) public constant returns (uint) {
     return allowances[_owner][_spender];
   }
 }
