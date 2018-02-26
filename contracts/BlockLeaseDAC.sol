@@ -4,15 +4,15 @@ interface ERC20 {
   function name() external constant returns (string _name);
   function symbol() external constant returns (string _symbol);
   function decimals() external constant returns (uint8 _decimals);
-  function totalSupply() public constant returns (uint256 _totalSupply);
-  function balanceOf(address _owner) external constant returns (uint256 balance);
-  function transfer(address _to, uint256 _value) external returns (bool success);
-  function transferFrom(address _from, address _to, uint256 _value) external returns (bool success);
-  function approve(address _spender, uint256 _value) external returns (bool success);
-  function allowance(address _owner, address _spender) external constant returns (uint256 remaining);
+  function totalSupply() public constant returns (uint _totalSupply);
+  function balanceOf(address _owner) external constant returns (uint balance);
+  function transfer(address _to, uint _value) external returns (bool success);
+  function transferFrom(address _from, address _to, uint _value) external returns (bool success);
+  function approve(address _spender, uint _value) external returns (bool success);
+  function allowance(address _owner, address _spender) external constant returns (uint remaining);
 
-  event Transfer(address indexed _from, address indexed _to, uint256 _value);
-  event Approval(address indexed _owner, address indexed _spender, uint256 _value);
+  event Transfer(address indexed _from, address indexed _to, uint _value);
+  event Approval(address indexed _owner, address indexed _spender, uint _value);
 }
 
 interface CrowdsaleRegistry {
