@@ -79,7 +79,7 @@ contract('BlockLeaseDAC', (accounts) => {
       200000, // tokensPerEth
       200000000, // bonusPool
       200000000, // devPool
-      60000 // votingBlockCount
+      5 // votingBlockCount
     ]));
 
     const balance = await dac.balanceOf.call(dac.address);
@@ -156,6 +156,7 @@ contract('BlockLeaseDAC', (accounts) => {
     const proposal = [
       100000000,
       200000,
+      100000000,
       100000000,
       2
     ];
