@@ -20,54 +20,54 @@ interface CrowdsaleRegistry {
 }
 
 interface DAC {
-  event Profit(address indexed _from, uint256 _value, uint256 _totalProfit, uint256 _profitInContract);
+  event Profit(address indexed _from, uint _value, uint _totalProfit, uint _profitInContract);
   function pay() external payable;
 }
 
 contract BlockLeaseDAC is ERC20, DAC {
 
   struct Proposal {
-    uint256 tokensForSale;
-    uint256 tokensPerEth;
-    uint256 bonusPool;
-    uint256 votingBlockCount;
-    uint256 blockNumber;
-    uint256 totalVotes;
+    uint tokensForSale;
+    uint tokensPerEth;
+    uint bonusPool;
+    uint votingBlockCount;
+    uint blockNumber;
+    uint totalVotes;
   }
 
   mapping (address => bool) public operators;
 
-  mapping (address => uint256) balances;
-  mapping (address => mapping (address => uint256)) allowances;
+  mapping (address => uint) balances;
+  mapping (address => mapping (address => uint)) allowances;
 
-  uint256 public tokensForSale;
-  uint256 public tokensSold;
-  uint256 public tokensPerEth;
+  uint public tokensForSale;
+  uint public tokensSold;
+  uint public tokensPerEth;
 
-  uint256 public bonusPool;
-  uint256 public bonusesDistributed;
+  uint public bonusPool;
+  uint public bonusesDistributed;
 
-  uint256 public proposalNumber;
+  uint public proposalNumber;
   Proposal[] public proposals;
-  mapping (uint256 => mapping (address => uint256)) votesPerProposal;
+  mapping (uint => mapping (address => uint)) votesPerProposal;
   bool public lastProposalApplied;
 
   // 14 days
-  uint256 public votingBlockCount;
+  uint public votingBlockCount;
 
   /**
    * DAC Profit Management
    **/
 
   // The total amount sent to the profit function
-  uint256 public totalProfit;
-  uint256 public profitInContract;
+  uint public totalProfit;
+  uint public profitInContract;
 
   // The last totalProfit value that was paid out to the address
-  mapping (address => uint256) lastTotalProfitCredited;
+  mapping (address => uint) lastTotalProfitCredited;
 
   // Profit balances available for withdrawal
-  mapping (address => uint256) profitBalances;
+  mapping (address => uint) profitBalances;
 
   address public crowdsaleRegistry;
 
@@ -90,10 +90,10 @@ contract BlockLeaseDAC is ERC20, DAC {
 
   bool _bootstrapped = false;
   function bootstrap(
-    uint256 _tokensForSale,
-    uint256 _tokensPerEth,
-    uint256 _bonusPool,
-    uint256 _votingBlockCount
+    uint _tokensForSale,
+    uint _tokensPerEth,
+    uint _bonusPool,
+    uint _votingBlockCount
   ) public operatorOnly {
     require(!_bootstrapped);
     _transferFrom(0x0, this, totalSupply());
@@ -101,7 +101,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     _bootstrapped = true;
   }
 
-  function withdraw(address _target, uint256 _amount) public operatorOnly {
+  function withdraw(address _target, uint _amount) public operatorOnly {
     // First throw if amount is greater than balance to avoid sign issues
     require(this.balance >= _amount);
     // Then ensure we never overdraw on profit held by token owners
@@ -117,10 +117,10 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Create a proposal to modify certain state variables
    **/
   function createProposal(
-    uint256 _tokensForSale,
-    uint256 _tokensPerEth,
-    uint256 _bonusPool,
-    uint256 _votingBlockCount
+    uint _tokensForSale,
+    uint _tokensPerEth,
+    uint _bonusPool,
+    uint _votingBlockCount
   ) public operatorOnly {
     if (!lastProposalApplied) applyProposal();
     require(!isVoteActive());
@@ -165,7 +165,7 @@ contract BlockLeaseDAC is ERC20, DAC {
 
   function vote() public {
     require(isVoteActive());
-    uint256 previousVote = votesPerProposal[proposalNumber][msg.sender];
+    uint previousVote = votesPerProposal[proposalNumber][msg.sender];
     proposals[proposalNumber].totalVotes -= previousVote;
     votesPerProposal[proposalNumber][msg.sender] = balances[msg.sender];
     proposals[proposalNumber].totalVotes += balances[msg.sender];
@@ -182,7 +182,7 @@ contract BlockLeaseDAC is ERC20, DAC {
    **/
   function () public payable {
     require(CrowdsaleRegistry(crowdsaleRegistry).isApproved(msg.sender));
-    uint256 tokenCount = tokensPerEth * msg.value / 10**18;
+    uint tokenCount = tokensPerEth * msg.value / 10**18;
     require(tokensSold + tokenCount <= tokensForSale);
     _transferFrom(this, msg.sender, tokenCount);
   }
@@ -195,11 +195,11 @@ contract BlockLeaseDAC is ERC20, DAC {
     profitInContract += msg.value;
     Profit(msg.sender, msg.value, totalProfit, profitInContract);
     if (bonusesDistributed >= bonusPool) return;
-    uint256 bonusTokens = tokensPerEth / 1000 * msg.value * 10**18;
+    uint bonusTokens = tokensPerEth / 1000 * msg.value * 10**18;
     if (bonusesDistributed + bonusTokens > bonusPool) {
       // The edge case of bonus distribution finishing
       // Pay out the remainder of the bonus pool
-      uint256 actualBonus = bonusPool - bonusesDistributed;
+      uint actualBonus = bonusPool - bonusesDistributed;
       _transferFrom(this, msg.sender, actualBonus);
       bonusesDistributed = bonusPool;
     } else {
@@ -221,8 +221,8 @@ contract BlockLeaseDAC is ERC20, DAC {
     lastTotalProfitCredited[_user] = totalProfit;
   }
 
-  function latestProfitBalance(address _user) public constant returns (uint256) {
-    uint256 owedBalance = (totalProfit - lastTotalProfitCredited[_user]) * balances[_user] / totalSupply();
+  function latestProfitBalance(address _user) public constant returns (uint) {
+    uint owedBalance = (totalProfit - lastTotalProfitCredited[_user]) * balances[_user] / totalSupply();
     return profitBalances[_user] + owedBalance;
   }
 
@@ -233,7 +233,7 @@ contract BlockLeaseDAC is ERC20, DAC {
   function _withdrawProfit(address _from) public returns (bool) {
     updateProfitBalance(_from);
     if (profitBalances[_from] <= 0) return true;
-    uint256 balance = profitBalances[_from];
+    uint balance = profitBalances[_from];
     profitInContract -= balance;
     profitBalances[_from] -= balance;
     _from.transfer(balance);
@@ -256,25 +256,25 @@ contract BlockLeaseDAC is ERC20, DAC {
     return 8;
   }
 
-  function totalSupply() public constant returns (uint256) {
+  function totalSupply() public constant returns (uint) {
     return 1000000000;
   }
 
-  function balanceOf(address _owner) external constant returns (uint256) {
+  function balanceOf(address _owner) external constant returns (uint) {
     return balances[_owner];
   }
 
-  function transfer(address _to, uint256 _value) external returns (bool) {
+  function transfer(address _to, uint _value) external returns (bool) {
     return _transferFrom(msg.sender, _to, _value);
   }
 
-  function transferFrom(address _from, address _to, uint256 _value) external returns (bool) {
+  function transferFrom(address _from, address _to, uint _value) external returns (bool) {
     require(allowances[_from][msg.sender] >= _value);
     allowances[_from][msg.sender] -= _value;
     return _transferFrom(_from, _to, _value);
   }
 
-  function _transferFrom(address _from, address _to, uint256 _value) private returns (bool) {
+  function _transferFrom(address _from, address _to, uint _value) private returns (bool) {
     require(balances[_from] >= _value);
     updateProfitBalance(_from);
     updateProfitBalance(_to);
@@ -286,13 +286,13 @@ contract BlockLeaseDAC is ERC20, DAC {
     return true;
   }
 
-  function approve(address _spender, uint256 _value) external returns (bool) {
+  function approve(address _spender, uint _value) external returns (bool) {
     allowances[msg.sender][_spender] = _value;
     Approval(msg.sender, _spender, _value);
     return true;
   }
 
-  function allowance(address _owner, address _spender) external constant returns (uint256) {
+  function allowance(address _owner, address _spender) external constant returns (uint) {
     return allowances[_owner][_spender];
   }
 }
