@@ -52,13 +52,15 @@ contract BlockLeaseDAC is ERC20, DAC {
   uint public tokensForSale;
   uint public tokensPerEth;
   uint public bonusPool;
+  uint public devPool;
   uint public votingBlockCount;
 
   /**
    * Token state variables
    **/
   uint public tokensSold;
-  uint public bonusesDistributed;
+  uint public bonusTokensDistributed;
+  uint public devTokensDistributed;
 
   uint public proposalNumber;
   Proposal[] public proposals;
@@ -116,11 +118,12 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint _tokensForSale,
     uint _tokensPerEth,
     uint _bonusPool,
+    uint _devPool,
     uint _votingBlockCount
   ) public operatorOnly {
     require(!_bootstrapped);
     _transferFrom(0x0, this, totalSupply());
-    createProposal(_tokensForSale, _tokensPerEth, _bonusPool, _votingBlockCount);
+    createProposal(_tokensForSale, _tokensPerEth, _bonusPool, _devPool, _votingBlockCount);
     _bootstrapped = true;
   }
 
@@ -142,6 +145,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint _tokensForSale,
     uint _tokensPerEth,
     uint _bonusPool,
+    uint _devPool,
     uint _votingBlockCount
   ) public operatorOnly {
     if (!lastProposalApplied) applyProposal();
@@ -149,12 +153,13 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(_tokensForSale >= tokensForSale);
     require(_tokensPerEth <= tokensPerEth);
     require(_bonusPool >= bonusPool);
+    require(_devPool >= devPool);
     require(_tokensForSale + _bonusPool <= totalSupply());
     require(_votingBlockCount > 0);
     if (proposals.length != 0) {
       proposalNumber++;
     }
-    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _votingBlockCount, block.number, 0));
+    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _devPool, _votingBlockCount, block.number, 0));
     lastProposalApplied = false;
   }
 
@@ -165,14 +170,13 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(!lastProposalApplied);
     require(proposals.length > 0);
     require(!isVoteActive());
-    if (proposals[proposalNumber].totalVotes < (tokensSold + bonusesDistributed) / 2) {
-      lastProposalApplied = true;
-      return;
+    if (proposals[proposalNumber].totalVotes >= circulatingSupply / 2) {
+      tokensForSale = proposals[proposalNumber].tokensForSale;
+      tokensPerEth = proposals[proposalNumber].tokensPerEth;
+      bonusPool = proposals[proposalNumber].bonusPool;
+      devPool = proposals[proposalNumber].devPool;
+      votingBlockCount = proposals[proposalNumber].votingBlockCount;
     }
-    tokensForSale = proposals[proposalNumber].tokensForSale;
-    tokensPerEth = proposals[proposalNumber].tokensPerEth;
-    bonusPool = proposals[proposalNumber].bonusPool;
-    votingBlockCount = proposals[proposalNumber].votingBlockCount;
     lastProposalApplied = true;
   }
 
@@ -216,17 +220,17 @@ contract BlockLeaseDAC is ERC20, DAC {
     totalProfit += msg.value;
     profitInContract += msg.value;
     Profit(msg.sender, msg.value, totalProfit, profitInContract);
-    if (bonusesDistributed >= bonusPool) return;
+    if (bonusTokensDistributed >= bonusPool) return;
     uint bonusTokens = tokensPerEth / 100 * msg.value * 10**18;
-    if (bonusesDistributed + bonusTokens > bonusPool) {
+    if (bonusTokensDistributed + bonusTokens > bonusPool) {
       // The edge case of bonus distribution finishing
       // Pay out the remainder of the bonus pool
-      uint actualBonus = bonusPool - bonusesDistributed;
+      uint actualBonus = bonusPool - bonusTokensDistributed;
       _transferFrom(this, msg.sender, actualBonus);
-      bonusesDistributed = bonusPool;
+      bonusTokensDistributed = bonusPool;
     } else {
       _transferFrom(this, msg.sender, bonusTokens);
-      bonusesDistributed += bonusTokens;
+      bonusTokensDistributed += bonusTokens;
     }
   }
 
@@ -247,7 +251,7 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Retrieve the up to date profit balance without mutating state
    **/
   function latestProfitBalance(address _user) public constant returns (uint) {
-    uint owedBalance = (totalProfit - lastTotalProfitCredited[_user]) * balances[_user] / totalSupply();
+    uint owedBalance = (totalProfit - lastTotalProfitCredited[_user]) * balances[_user] / circulatingSupply();
     return profitBalances[_user] + owedBalance;
   }
 
@@ -289,6 +293,10 @@ contract BlockLeaseDAC is ERC20, DAC {
 
   function totalSupply() public constant returns (uint) {
     return 1000000000;
+  }
+
+  function circulatingSupply() public constant returns (uint) {
+    return tokensSold + bonusTokensDistributed + devTokensDistributed;
   }
 
   function balanceOf(address _owner) external constant returns (uint) {
