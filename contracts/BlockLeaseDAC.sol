@@ -165,7 +165,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(!lastProposalApplied);
     require(proposals.length > 0);
     require(!isVoteActive());
-    if (proposals[proposalNumber].totalVotes < tokensSold / 2) {
+    if (proposals[proposalNumber].totalVotes < (tokensSold + bonusesDistributed) / 2) {
       lastProposalApplied = true;
       return;
     }
