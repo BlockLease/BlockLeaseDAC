@@ -110,7 +110,10 @@ contract BlockLeaseDAC is ERC20, DAC {
     /* crowdsaleRegistry = _crowdsaleRegistry; */
     lastProposalApplied = true;
     tokensPerEth = totalSupply();
-    votingBlockCount = 1;
+    votingBlockCount = 3;
+    proposals.push(
+      Proposal(tokensForSale, tokensPerEth, bonusPool, devPool, votingBlockCount, 0, 0)
+    );
     balances[0x0] = totalSupply();
     _transferFrom(0x0, this, totalSupply());
   }
@@ -143,10 +146,9 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(_bonusPool >= bonusPool);
     require(_devPool >= devPool);
     require(_tokensForSale + _bonusPool + _devPool <= totalSupply());
-    require(_votingBlockCount > 0);
-    if (proposals.length != 0) {
-      proposalNumber++;
-    }
+    require(_votingBlockCount > 1);
+
+    proposalNumber++;
     proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _devPool, _votingBlockCount, block.number, 0));
     lastProposalApplied = false;
   }
@@ -155,9 +157,8 @@ contract BlockLeaseDAC is ERC20, DAC {
    * Apply a voted upon proposal
    **/
   function applyProposal() public operatorOnly {
-    require(!lastProposalApplied);
-    require(proposals.length > 0);
     require(!isVoteActive());
+    require(!lastProposalApplied);
     if (proposals[proposalNumber].totalVotes >= circulatingSupply() / 2) {
       tokensForSale = proposals[proposalNumber].tokensForSale;
       tokensPerEth = proposals[proposalNumber].tokensPerEth;
@@ -169,13 +170,11 @@ contract BlockLeaseDAC is ERC20, DAC {
   }
 
   function isVoteActive() public constant returns (bool) {
-    if (proposals.length == 0) return false;
     return (
-      block.number < proposals[proposalNumber].blockNumber + votingBlockCount &&
-      block.number >= proposals[proposalNumber].blockNumber
+      block.number >= proposals[proposalNumber].blockNumber &&
+      block.number < proposals[proposalNumber].blockNumber + votingBlockCount
     );
   }
-
 
   function vote() public {
     require(isVoteActive());

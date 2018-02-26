@@ -50,7 +50,7 @@ async function waitForBlock(num) {
 async function votingEndBlock(dac) {
   const votingBlockCount = await dac.votingBlockCount.call();
   const proposal = await activeProposal(dac);
-  return +proposal[4] + +votingBlockCount;
+  return +proposal[5] + +votingBlockCount;
 }
 
 async function activeProposal(dac) {
@@ -144,23 +144,29 @@ contract('BlockLeaseDAC', (accounts) => {
     assert(!await createProposal(dac, accounts[0], proposal, 'Decreased bonusPool in proposal'));
   });
 
+  it('should fail to create proposal with lower devPool value', async () => {
+    const dac = await BlockLeaseDAC.deployed();
+    const proposal = await activeProposal(dac);
+    proposal[3] = +proposal[3] - 1;
+    assert(!await createProposal(dac, accounts[0], proposal, 'Decreased bonusPool in proposal'));
+  });
+
   it('should fail to create proposal with 0 proposalVotingTime', async () => {
     const dac = await BlockLeaseDAC.deployed();
     const proposal = await activeProposal(dac);
-    proposal[3] = 0;
+    proposal[4] = 0;
     assert(!await createProposal(dac, accounts[0], proposal, 'Set proposalVotingTime to 0 in proposal'));
   });
 
-  it('should create a proposal', async () => {
+  it('should create another proposal', async () => {
     const dac = await BlockLeaseDAC.deployed();
-    const proposal = [
-      100000000,
+    assert(await createProposal(dac, accounts[0], [
+      200000000,
       200000,
-      100000000,
-      100000000,
-      2
-    ];
-    assert(await createProposal(dac, accounts[0], proposal), 'Failed to create proposal');
+      200000000,
+      200000000,
+      5
+    ]), 'Failed to create proposal');
   });
 
 });
