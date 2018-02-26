@@ -60,14 +60,27 @@ async function activeProposal(dac) {
 
 contract('BlockLeaseDAC', (accounts) => {
 
-  it('should fail to bootstrap from non operator', async () => {
+  it('should fail to create proposal from non operator', async () => {
     const dac = await BlockLeaseDAC.deployed();
     assert(!await bootstrap(dac, accounts[1]));
+    assert(!await createProposal(dac, accounts[1], [
+      200000000, // tokensForSale
+      200000, // tokensPerEth
+      200000000, // bonusPool
+      200000000, // devPool
+      60000 // votingBlockCount
+    ]));
   });
 
-  it('should bootstrap', async () => {
+  it('should create first proposal', async () => {
     const dac = await BlockLeaseDAC.deployed();
-    assert(await bootstrap(dac, accounts[0]), 'Error bootstrapping');
+    assert(await createProposal(dac, accounts[0], [
+      200000000, // tokensForSale
+      200000, // tokensPerEth
+      200000000, // bonusPool
+      200000000, // devPool
+      60000 // votingBlockCount
+    ]));
 
     const balance = await dac.balanceOf.call(dac.address);
     const totalSupply = await dac.totalSupply.call();
