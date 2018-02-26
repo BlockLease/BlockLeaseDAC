@@ -35,16 +35,29 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint totalVotes;
   }
 
+  /**
+   * Operators
+   **/
   mapping (address => bool) public operators;
 
+  /**
+   * ERC20 state
+   **/
   mapping (address => uint) balances;
   mapping (address => mapping (address => uint)) allowances;
 
+  /**
+   * Customizable variables by proposal
+   **/
   uint public tokensForSale;
-  uint public tokensSold;
   uint public tokensPerEth;
-
   uint public bonusPool;
+  uint public votingBlockCount;
+
+  /**
+   * Token state variables
+   **/
+  uint public tokensSold;
   uint public bonusesDistributed;
 
   uint public proposalNumber;
@@ -52,23 +65,33 @@ contract BlockLeaseDAC is ERC20, DAC {
   mapping (uint => mapping (address => uint)) votesPerProposal;
   bool public lastProposalApplied;
 
-  // 14 days
-  uint public votingBlockCount;
+  /**
+   * Total profit ever received (in wei).
+   **/
+  uint public totalProfit;
 
   /**
-   * DAC Profit Management
+   * Total profit that has yet to be withdrawn (in wei).
    **/
-
-  // The total amount sent to the profit function
-  uint public totalProfit;
   uint public profitInContract;
 
-  // The last totalProfit value that was paid out to the address
+  /**
+   * The last totalProfit value that was paid out to the address.
+   *
+   * Every time an address token balance changes this is updated.
+   **/
   mapping (address => uint) lastTotalProfitCredited;
 
-  // Profit balances available for withdrawal
+  /**
+   * Profits available for withdrawal
+   **/
   mapping (address => uint) profitBalances;
 
+  /**
+   * The address of the crowdsale registry contract
+   *
+   * @TODO implement
+   **/
   address public crowdsaleRegistry;
 
   modifier operatorOnly() {
