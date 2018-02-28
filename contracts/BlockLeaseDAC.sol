@@ -30,7 +30,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint tokensForSale;
     uint tokensPerEth;
     uint bonusPool;
-    uint devPool;
+    uint operatorPool;
     uint votingBlockCount;
     uint blockNumber;
     uint totalVotes;
@@ -53,7 +53,7 @@ contract BlockLeaseDAC is ERC20, DAC {
   uint public tokensForSale;
   uint public tokensPerEth;
   uint public bonusPool;
-  uint public devPool;
+  uint public operatorPool;
   uint public votingBlockCount;
 
   /**
@@ -61,7 +61,7 @@ contract BlockLeaseDAC is ERC20, DAC {
    **/
   uint public tokensSold;
   uint public bonusTokensDistributed;
-  uint public devTokensDistributed;
+  uint public operatorTokensDistributed;
 
   uint public proposalNumber;
   Proposal[] public proposals;
@@ -112,7 +112,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     tokensPerEth = totalSupply();
     votingBlockCount = 3;
     proposals.push(
-      Proposal(tokensForSale, tokensPerEth, bonusPool, devPool, votingBlockCount, 0, 0)
+      Proposal(tokensForSale, tokensPerEth, bonusPool, operatorPool, votingBlockCount, 0, 0)
     );
     balances[0x0] = totalSupply();
     _transferFrom(0x0, this, totalSupply());
@@ -136,7 +136,7 @@ contract BlockLeaseDAC is ERC20, DAC {
     uint _tokensForSale,
     uint _tokensPerEth,
     uint _bonusPool,
-    uint _devPool,
+    uint _operatorPool,
     uint _votingBlockCount
   ) public operatorOnly {
     if (!lastProposalApplied) applyProposal();
@@ -144,12 +144,12 @@ contract BlockLeaseDAC is ERC20, DAC {
     require(_tokensForSale >= tokensForSale);
     require(_tokensPerEth <= tokensPerEth);
     require(_bonusPool >= bonusPool);
-    require(_devPool >= devPool);
-    require(_tokensForSale + _bonusPool + _devPool <= totalSupply());
+    require(_operatorPool >= operatorPool);
+    require(_tokensForSale + _bonusPool + _operatorPool <= totalSupply());
     require(_votingBlockCount > 1);
 
     proposalNumber++;
-    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _devPool, _votingBlockCount, block.number, 0));
+    proposals.push(Proposal(_tokensForSale, _tokensPerEth, _bonusPool, _operatorPool, _votingBlockCount, block.number, 0));
     lastProposalApplied = false;
   }
 
@@ -163,7 +163,7 @@ contract BlockLeaseDAC is ERC20, DAC {
       tokensForSale = proposals[proposalNumber].tokensForSale;
       tokensPerEth = proposals[proposalNumber].tokensPerEth;
       bonusPool = proposals[proposalNumber].bonusPool;
-      devPool = proposals[proposalNumber].devPool;
+      operatorPool = proposals[proposalNumber].operatorPool;
       votingBlockCount = proposals[proposalNumber].votingBlockCount;
     }
     lastProposalApplied = true;
@@ -263,7 +263,7 @@ contract BlockLeaseDAC is ERC20, DAC {
   }
 
   function circulatingSupply() public constant returns (uint) {
-    return tokensSold + bonusTokensDistributed + devTokensDistributed;
+    return tokensSold + bonusTokensDistributed + operatorTokensDistributed;
   }
 
   /**

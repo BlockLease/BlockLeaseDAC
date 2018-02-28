@@ -74,7 +74,7 @@ contract('BlockLeaseDAC', (accounts) => {
       200000000, // tokensForSale
       200000, // tokensPerEth
       200000000, // bonusPool
-      200000000, // devPool
+      200000000, // operatorPool
       60000 // votingBlockCount
     ]));
   });
@@ -85,7 +85,7 @@ contract('BlockLeaseDAC', (accounts) => {
       200000000, // tokensForSale
       200000, // tokensPerEth
       200000000, // bonusPool
-      200000000, // devPool
+      200000000, // operatorPool
       5 // votingBlockCount
     ]));
 
@@ -119,11 +119,11 @@ contract('BlockLeaseDAC', (accounts) => {
     const tokensForSale = await dac.tokensForSale.call();
     const tokensPerEth = await dac.tokensPerEth.call();
     const bonusPool = await dac.bonusPool.call();
-    const devPool = await dac.devPool.call();
+    const operatorPool = await dac.operatorPool.call();
     assert.equal(tokensForSale.toString(), proposal[TOKENS_FOR_SALE_INDEX].toString(), 'Tokens for sale is incorrect');
     assert.equal(tokensPerEth.toString(), proposal[TOKENS_PER_ETH_INDEX].toString(), 'Tokens per eth is incorrect');
     assert.equal(bonusPool.toString(), proposal[BONUS_POOL_INDEX].toString(), 'Bonus pool is incorrect');
-    assert.equal(devPool.toString(), proposal[DEV_POOL_INDEX].toString(), 'Dev pool is incorrect');
+    assert.equal(operatorPool.toString(), proposal[DEV_POOL_INDEX].toString(), 'Dev pool is incorrect');
   });
 
   it('should fail to create a new proposal if not operator', async () => {
@@ -153,11 +153,11 @@ contract('BlockLeaseDAC', (accounts) => {
     assert(!await createProposal(dac, accounts[0], proposal, 'Decreased bonusPool in proposal'));
   });
 
-  it('should fail to create proposal with lower devPool value', async () => {
+  it('should fail to create proposal with lower operatorPool value', async () => {
     const dac = await BlockLeaseDAC.deployed();
     const proposal = await activeProposal(dac);
     proposal[DEV_POOL_INDEX] = +proposal[DEV_POOL_INDEX] - 1;
-    assert(!await createProposal(dac, accounts[0], proposal, 'Decreased bonusPool in proposal'));
+    assert(!await createProposal(dac, accounts[0], proposal, 'Decreased operatorPool in proposal'));
   });
 
   it('should fail to create proposal with votingBlockCount <= 1', async () => {
