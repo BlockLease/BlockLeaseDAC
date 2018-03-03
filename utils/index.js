@@ -78,12 +78,12 @@ async function throwToBool(fn, ...args) {
 }
 
 module.exports = {
-  throwToBool,
   createProposal,
   applyProposal,
   votingEndBlock,
   waitForBlock,
   activeProposal,
+  throwToBool,
   TOKENS_FOR_SALE_INDEX,
   TOKENS_PER_ETH_INDEX,
   BONUS_POOL_INDEX,
