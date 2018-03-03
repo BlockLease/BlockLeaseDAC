@@ -62,6 +62,9 @@ async function activeProposal(dac) {
 
 /**
  * Catch any thrown value and return false instead
+ *
+ * The first parameter is a function that will be called with
+ * the await keyword. The supplied function must be async.
  **/
 async function throwToBool(fn, ...args) {
   let thrown = false;
