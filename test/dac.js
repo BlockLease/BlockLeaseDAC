@@ -147,4 +147,16 @@ contract('BlockLeaseDAC', (accounts) => {
     assert(+actualBalance === +expectedBalance, `Expected token balance to be ${expectedBalance}, received ${actualBalance}`);
   });
 
+  it('should fail to send less than the minimum amount', async () => {
+    const dac = await BlockLeaseDAC.deployed();
+    const minimumPurchaseWei = await dac.minimumPurchaseWei.call();
+    assert(!await throwToBool(async () => {
+      await dac.sendTransaction({
+        from: accounts[1],
+        to: dac.address,
+        value: minimumPurchaseWei - 1
+      })
+    }), 'Sent less than the minimum purchase wei');
+  });
+
 });

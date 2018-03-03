@@ -195,7 +195,7 @@ contract BlockLeaseDAC is ERC20, DAC {
    **/
   function () public payable {
     /* require(CrowdsaleRegistry(crowdsaleRegistry).isApproved(msg.sender)); */
-    require(msg.value > minimumPurchaseWei());
+    require(msg.value >= minimumPurchaseWei());
     uint tokenCount = tokensPerEth * msg.value / 10**18;
     require(tokensSold + tokenCount <= tokensForSale);
     _transferFrom(this, msg.sender, tokenCount);
