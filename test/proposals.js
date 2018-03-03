@@ -2,74 +2,25 @@
 
 const CrowdsaleRegistry = artifacts.require('./CrowdsaleRegistry.sol');
 const BlockLeaseDAC = artifacts.require('./BlockLeaseDAC.sol');
-
-const TOKENS_FOR_SALE_INDEX = 0;
-const TOKENS_PER_ETH_INDEX = 1;
-const BONUS_POOL_INDEX = 2;
-const DEV_POOL_INDEX = 3;
-const VOTING_BLOCK_COUNT_INDEX = 4;
-const BLOCK_NUMBER_INDEX = 5;
-
-async function bootstrap(dac, operator) {
-  return throwToBool(async () => {
-    await dac.bootstrap(0, await dac.totalSupply.call(), 0, 2, {
-      from: operator
-    });
-  });
-}
-
-async function createProposal(dac, operator, args) {
-  return await throwToBool(async () => {
-    await dac.createProposal(...args, {
-      from: operator
-    });
-  });
-}
-
-async function applyProposal(dac, operator) {
-  return await throwToBool(async () => {
-    await dac.applyProposal({
-      from: operator
-    });
-  });
-}
-
-/**
- * Catch any thrown value and return false instead
- **/
-async function throwToBool(fn, ...args) {
-  let thrown = false;
-  try {
-    await fn(...args);
-  } catch (err) {
-    thrown = true;
-  } finally {
-    return !thrown;
-  }
-}
-
-async function waitForBlock(num) {
-  while (web3.eth.blockNumber < +num) {
-    await new Promise(r => setTimeout(r, 200));
-  }
-}
-
-async function votingEndBlock(dac) {
-  const votingBlockCount = await dac.votingBlockCount.call();
-  const proposal = await activeProposal(dac);
-  return +proposal[BLOCK_NUMBER_INDEX] + +votingBlockCount;
-}
-
-async function activeProposal(dac) {
-  const proposalNumber = await dac.proposalNumber.call();
-  return await dac.proposals.call(proposalNumber);
-}
+const {
+  TOKENS_FOR_SALE_INDEX,
+  TOKENS_PER_ETH_INDEX,
+  BONUS_POOL_INDEX,
+  OPERATOR_POOL_INDEX,
+  VOTING_BLOCK_COUNT_INDEX,
+  BLOCK_NUMBER_INDEX,
+  throwToBool,
+  createProposal,
+  applyProposal,
+  votingEndBlock,
+  waitForBlock,
+  activeProposal
+} = require('../utils');
 
 contract('BlockLeaseDAC', (accounts) => {
 
   it('should fail to create proposal from non operator', async () => {
     const dac = await BlockLeaseDAC.deployed();
-    assert(!await bootstrap(dac, accounts[1]));
     assert(!await createProposal(dac, accounts[1], [
       200000000, // tokensForSale
       200000, // tokensPerEth
@@ -123,7 +74,7 @@ contract('BlockLeaseDAC', (accounts) => {
     assert.equal(tokensForSale.toString(), proposal[TOKENS_FOR_SALE_INDEX].toString(), 'Tokens for sale is incorrect');
     assert.equal(tokensPerEth.toString(), proposal[TOKENS_PER_ETH_INDEX].toString(), 'Tokens per eth is incorrect');
     assert.equal(bonusPool.toString(), proposal[BONUS_POOL_INDEX].toString(), 'Bonus pool is incorrect');
-    assert.equal(operatorPool.toString(), proposal[DEV_POOL_INDEX].toString(), 'Dev pool is incorrect');
+    assert.equal(operatorPool.toString(), proposal[OPERATOR_POOL_INDEX].toString(), 'Dev pool is incorrect');
   });
 
   it('should fail to create a new proposal if not operator', async () => {
@@ -156,7 +107,7 @@ contract('BlockLeaseDAC', (accounts) => {
   it('should fail to create proposal with lower operatorPool value', async () => {
     const dac = await BlockLeaseDAC.deployed();
     const proposal = await activeProposal(dac);
-    proposal[DEV_POOL_INDEX] = +proposal[DEV_POOL_INDEX] - 1;
+    proposal[OPERATOR_POOL_INDEX] = +proposal[OPERATOR_POOL_INDEX] - 1;
     assert(!await createProposal(dac, accounts[0], proposal, 'Decreased operatorPool in proposal'));
   });
 
