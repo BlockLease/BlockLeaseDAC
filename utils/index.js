@@ -1,7 +1,5 @@
 'use strict';
 
-const throwToBool = require('./throw-to-bool');
-
 /**
  * Constants for interacting with the Proposal struct
  **/
@@ -60,6 +58,20 @@ async function votingEndBlock(dac) {
 async function activeProposal(dac) {
   const proposalNumber = await dac.proposalNumber.call();
   return await dac.proposals.call(proposalNumber);
+}
+
+/**
+ * Catch any thrown value and return false instead
+ **/
+async function throwToBool(fn, ...args) {
+  let thrown = false;
+  try {
+    await fn(...args);
+  } catch (err) {
+    thrown = true;
+  } finally {
+    return !thrown;
+  }
 }
 
 module.exports = {
